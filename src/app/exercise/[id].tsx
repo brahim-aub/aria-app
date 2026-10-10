@@ -62,8 +62,8 @@ export default function ExerciseDetail() {
 }
 
 const styles = StyleSheet.create({
-  illustration: { height: 180, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.cardMuted },
+  illustration: { height: 180, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.surface },
   illustrationText: { color: Colors.textSecondary, fontSize: 15 },
-  section: { fontSize: 18, fontWeight: '800', color: Colors.text },
-  link: { fontSize: 16, fontWeight: '700', color: Colors.primaryDark, marginTop: 4 },
+  section: { fontSize: 18, fontWeight: '600', color: Colors.text },
+  link: { fontSize: 16, fontWeight: '700', color: Colors.text, marginTop: 4, textDecorationLine: 'underline' },
 });

@@ -195,9 +195,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   centerText: { textAlign: 'center' },
-  label: { fontSize: 16, fontWeight: '700', color: Colors.secondary, textTransform: 'uppercase' },
-  exerciseName: { fontSize: 28, fontWeight: '900', color: Colors.text, textAlign: 'center' },
-  timer: { fontSize: 64, fontWeight: '900', color: Colors.primary },
-  big: { fontSize: 40, fontWeight: '900', color: Colors.primary },
+  label: { fontSize: 16, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 1 },
+  exerciseName: { fontSize: 28, fontWeight: '700', color: Colors.text, textAlign: 'center' },
+  timer: { fontSize: 64, fontWeight: '300', color: Colors.text, fontVariant: ['tabular-nums'] },
+  big: { fontSize: 36, fontWeight: '700', color: Colors.text },
   feelings: { justifyContent: 'center', marginTop: Spacing.md },
 });

@@ -1,16 +1,13 @@
+/** Palette volontairement sobre : des neutres, du noir pour les actions, un seul vert discret pour la progression. */
 export const Colors = {
-  primary: '#FF6B35',
-  primaryDark: '#E4521B',
-  secondary: '#4361EE',
-  accent: '#2EC4B6',
-  warning: '#FFB703',
-  danger: '#E63946',
-  background: '#FFF8F2',
+  primary: '#161616',
+  accent: '#3E7B5F',
+  background: '#FAFAF8',
   card: '#FFFFFF',
-  cardMuted: '#FFEFE3',
-  text: '#1D1D2C',
-  textSecondary: '#6B6B80',
-  border: '#F1E0D2',
+  surface: '#F2F2EF',
+  text: '#161616',
+  textSecondary: '#75746F',
+  border: '#E7E6E2',
   white: '#FFFFFF',
 } as const;
 
@@ -23,8 +20,8 @@ export const Spacing = {
 } as const;
 
 export const Radius = {
-  sm: 10,
-  md: 16,
-  lg: 24,
+  sm: 8,
+  md: 14,
+  lg: 18,
   pill: 999,
 } as const;

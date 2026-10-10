@@ -91,6 +91,6 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  section: { fontSize: 18, fontWeight: '800', color: Colors.text },
-  highlight: { fontWeight: '800', color: Colors.primaryDark },
+  section: { fontSize: 18, fontWeight: '600', color: Colors.text },
+  highlight: { fontWeight: '700', color: Colors.text },
 });

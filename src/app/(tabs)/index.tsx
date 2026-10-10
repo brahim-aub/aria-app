@@ -40,11 +40,11 @@ export default function Home() {
       <Title>Salut {profile.firstName} !</Title>
 
       <Row>
-        <View style={[styles.stat, { backgroundColor: Colors.primary }]}>
+        <View style={styles.stat}>
           <Text style={styles.statValue}>{streak}</Text>
           <Text style={styles.statLabel}>{streak > 1 ? 'jours d\'affilée' : 'jour d\'affilée'}</Text>
         </View>
-        <View style={[styles.stat, { backgroundColor: Colors.secondary }]}>
+        <View style={styles.stat}>
           <Text style={styles.statValue}>{history.length}</Text>
           <Text style={styles.statLabel}>{history.length > 1 ? 'séances' : 'séance'}</Text>
         </View>
@@ -124,13 +124,20 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
-  stat: { flex: 1, borderRadius: Radius.lg, padding: Spacing.md },
-  statValue: { fontSize: 32, fontWeight: '900', color: Colors.white },
-  statLabel: { fontSize: 14, color: Colors.white, fontWeight: '600' },
-  cardTitle: { fontSize: 19, fontWeight: '800', color: Colors.text },
+  stat: {
+    flex: 1,
+    borderRadius: Radius.lg,
+    padding: Spacing.md,
+    backgroundColor: Colors.card,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  statValue: { fontSize: 30, fontWeight: '600', color: Colors.text, fontVariant: ['tabular-nums'] },
+  statLabel: { fontSize: 14, color: Colors.textSecondary },
+  cardTitle: { fontSize: 19, fontWeight: '600', color: Colors.text },
   list: { gap: 6, marginVertical: Spacing.sm },
   listItem: { fontSize: 16, color: Colors.text, fontWeight: '600' },
   listMeta: { color: Colors.textSecondary, fontWeight: '400' },
-  banner: { backgroundColor: Colors.cardMuted, borderRadius: Radius.md, padding: Spacing.md },
-  bannerText: { fontSize: 14 },
+  banner: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.md },
+  bannerText: { fontSize: 14, color: Colors.textSecondary },
 });

@@ -109,7 +109,7 @@ export function Row({ children, style }: { children: ReactNode; style?: StylePro
   return <View style={[styles.row, style]}>{children}</View>;
 }
 
-export function ProgressBar({ value, color = Colors.primary }: { value: number; color?: string }) {
+export function ProgressBar({ value, color = Colors.accent }: { value: number; color?: string }) {
   const clamped = Math.max(0, Math.min(1, value));
   return (
     <View style={styles.track}>
@@ -122,7 +122,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
   scrollContent: { padding: Spacing.md, gap: Spacing.md, paddingBottom: Spacing.xl },
   fill: { flex: 1 },
-  title: { fontSize: 26, fontWeight: '800', color: Colors.text },
+  title: { fontSize: 26, fontWeight: '600', color: Colors.text },
   body: { fontSize: 16, lineHeight: 23, color: Colors.text },
   muted: { color: Colors.textSecondary },
   card: {
@@ -140,28 +140,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   primary: { backgroundColor: Colors.primary },
-  secondary: { backgroundColor: Colors.cardMuted },
+  secondary: { backgroundColor: Colors.surface },
   ghost: { backgroundColor: 'transparent' },
   pressed: { opacity: 0.8 },
   disabled: { opacity: 0.4 },
-  buttonLabel: { color: Colors.white, fontSize: 17, fontWeight: '700' },
-  buttonLabelAlt: { color: Colors.primaryDark },
+  buttonLabel: { color: Colors.white, fontSize: 16, fontWeight: '600' },
+  buttonLabelAlt: { color: Colors.text },
   chip: {
     borderRadius: Radius.pill,
     paddingVertical: 10,
     paddingHorizontal: 14,
     backgroundColor: Colors.card,
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: Colors.border,
   },
   chipSelected: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipLabel: { fontSize: 15, color: Colors.text, fontWeight: '600' },
+  chipLabel: { fontSize: 15, color: Colors.text, fontWeight: '500' },
   chipLabelSelected: { color: Colors.white },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, alignItems: 'center' },
   track: {
-    height: 10,
+    height: 6,
     borderRadius: Radius.pill,
-    backgroundColor: Colors.cardMuted,
+    backgroundColor: Colors.surface,
     overflow: 'hidden',
   },
   bar: { height: '100%', borderRadius: Radius.pill },

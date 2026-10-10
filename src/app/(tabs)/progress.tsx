@@ -43,7 +43,7 @@ export default function Progress() {
                 <Text style={styles.points}>{achievement.points} pts</Text>
               </View>
               <Body muted>{achievement.description}</Body>
-              <ProgressBar value={value / target} color={unlocked ? Colors.accent : Colors.primary} />
+              <ProgressBar value={value / target} color={unlocked ? Colors.accent : Colors.textSecondary} />
               <Text style={styles.progressText}>
                 {Math.min(value, target).toLocaleString('fr-FR')} / {target.toLocaleString('fr-FR')}
               </Text>
@@ -85,12 +85,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  statValue: { fontSize: 26, fontWeight: '900', color: Colors.primary },
+  statValue: { fontSize: 26, fontWeight: '600', color: Colors.text, fontVariant: ['tabular-nums'] },
   statLabel: { fontSize: 14, color: Colors.textSecondary, fontWeight: '600' },
-  section: { fontSize: 20, fontWeight: '800', color: Colors.text, marginTop: Spacing.sm },
-  unlocked: { borderColor: Colors.accent, borderWidth: 2 },
+  section: { fontSize: 20, fontWeight: '600', color: Colors.text, marginTop: Spacing.sm },
+  unlocked: { borderColor: Colors.accent },
   achievementHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  achievementTitle: { fontSize: 17, fontWeight: '800', color: Colors.text },
-  points: { fontSize: 14, fontWeight: '800', color: Colors.secondary },
+  achievementTitle: { fontSize: 17, fontWeight: '600', color: Colors.text },
+  points: { fontSize: 14, fontWeight: '500', color: Colors.textSecondary },
   progressText: { fontSize: 13, color: Colors.textSecondary },
 });
