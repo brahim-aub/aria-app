@@ -153,6 +153,100 @@ const STEPS: Step[] = [
 
 type Message = { from: 'coach' | 'user'; text: string };
 
+type Answer = (value: Profile[keyof Profile], label: string) => void;
+
+/** Zone de réponse d'une question ; remontée à chaque question grâce à sa `key`. */
+function StepInput({ step, onAnswer }: { step: Step; onAnswer: Answer }) {
+  const [text, setText] = useState('');
+  const [multi, setMulti] = useState<string[]>([]);
+
+  if (step.kind === 'text') {
+    const value = text.trim();
+    return (
+      <View style={styles.inputRow}>
+        <TextInput
+          style={styles.input}
+          value={text}
+          onChangeText={setText}
+          placeholder="Ton prénom"
+          autoFocus
+          returnKeyType="send"
+          onSubmitEditing={() => value && onAnswer(value, value)}
+        />
+        <Button label="OK" disabled={!value} onPress={() => onAnswer(value, value)} />
+      </View>
+    );
+  }
+
+  if (step.kind === 'number') {
+    const value = Number(text.replace(',', '.'));
+    const valid =
+      text.trim() !== '' && Number.isFinite(value) && value >= step.min && value <= step.max;
+    return (
+      <View style={styles.inputRow}>
+        <TextInput
+          style={styles.input}
+          value={text}
+          onChangeText={setText}
+          placeholder={step.unit}
+          keyboardType="numeric"
+          autoFocus
+        />
+        <Button
+          label="OK"
+          disabled={!valid}
+          onPress={() => onAnswer(Math.round(value), `${text} ${step.unit}`)}
+        />
+      </View>
+    );
+  }
+
+  if (step.kind === 'choice') {
+    return (
+      <Row>
+        {step.options.map((option) => (
+          <Chip
+            key={option.label}
+            label={option.label}
+            onPress={() => onAnswer(option.value as Profile[keyof Profile], option.label)}
+          />
+        ))}
+      </Row>
+    );
+  }
+
+  const selectedLabels = step.options
+    .filter((o) => multi.includes(String(o.value)))
+    .map((o) => o.label)
+    .join(', ');
+  return (
+    <>
+      <Row>
+        {step.options.map((option) => {
+          const value = String(option.value);
+          const selected = multi.includes(value);
+          return (
+            <Chip
+              key={value}
+              label={option.label}
+              selected={selected}
+              onPress={() =>
+                setMulti(selected ? multi.filter((v) => v !== value) : [...multi, value])
+              }
+            />
+          );
+        })}
+      </Row>
+      <Button
+        label={multi.length ? 'Valider' : step.noneLabel}
+        onPress={() =>
+          onAnswer(multi as Profile[keyof Profile], multi.length ? selectedLabels : step.noneLabel)
+        }
+      />
+    </>
+  );
+}
+
 export default function Onboarding() {
   const router = useRouter();
   const completeOnboarding = useAppStore((state) => state.completeOnboarding);
@@ -163,19 +257,17 @@ export default function Onboarding() {
   const [messages, setMessages] = useState<Message[]>([
     { from: 'coach', text: STEPS[0].question({}) },
   ]);
-  const [text, setText] = useState('');
-  const [multi, setMulti] = useState<string[]>([]);
 
-  const step = STEPS[stepIndex];
-  const done = stepIndex >= STEPS.length;
+  const step: Step | undefined = STEPS[stepIndex];
 
   const finish = (profile: Profile) => {
     completeOnboarding(profile);
     router.replace('/(tabs)');
   };
 
-  const answer = (value: Profile[keyof Profile], label: string) => {
-    const next = { ...answers, [step.key]: value };
+  const answer: Answer = (value, label) => {
+    const current = STEPS[stepIndex];
+    const next = { ...answers, [current.key]: value };
     const nextIndex = stepIndex + 1;
     const nextMessages: Message[] = [...messages, { from: 'user', text: label }];
     if (nextIndex < STEPS.length) {
@@ -189,18 +281,8 @@ export default function Onboarding() {
     setAnswers(next);
     setMessages(nextMessages);
     setStepIndex(nextIndex);
-    setText('');
-    setMulti([]);
     requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
   };
-
-  const numberValue = Number(text.replace(',', '.'));
-  const numberValid =
-    step?.kind === 'number' &&
-    text.trim() !== '' &&
-    Number.isFinite(numberValue) &&
-    numberValue >= step.min &&
-    numberValue <= step.max;
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
@@ -232,95 +314,13 @@ export default function Onboarding() {
         </ScrollView>
 
         <View style={styles.inputArea}>
-          {done && (
+          {step ? (
+            <StepInput key={stepIndex} step={step} onAnswer={answer} />
+          ) : (
             <Button
               label="C'est parti !"
               onPress={() => finish({ ...TEST_PROFILE, ...answers } as Profile)}
             />
-          )}
-
-          {step?.kind === 'text' && (
-            <View style={styles.inputRow}>
-              <TextInput
-                style={styles.input}
-                value={text}
-                onChangeText={setText}
-                placeholder="Ton prénom"
-                autoFocus
-                returnKeyType="send"
-                onSubmitEditing={() => text.trim() && answer(text.trim(), text.trim())}
-              />
-              <Button
-                label="OK"
-                disabled={!text.trim()}
-                onPress={() => answer(text.trim(), text.trim())}
-              />
-            </View>
-          )}
-
-          {step?.kind === 'number' && (
-            <View style={styles.inputRow}>
-              <TextInput
-                style={styles.input}
-                value={text}
-                onChangeText={setText}
-                placeholder={step.unit}
-                keyboardType="numeric"
-                autoFocus
-              />
-              <Button
-                label="OK"
-                disabled={!numberValid}
-                onPress={() => answer(Math.round(numberValue), `${text} ${step.unit}`)}
-              />
-            </View>
-          )}
-
-          {step?.kind === 'choice' && (
-            <Row>
-              {step.options.map((option) => (
-                <Chip
-                  key={option.label}
-                  label={option.label}
-                  onPress={() => answer(option.value as Profile[keyof Profile], option.label)}
-                />
-              ))}
-            </Row>
-          )}
-
-          {step?.kind === 'multi' && (
-            <>
-              <Row>
-                {step.options.map((option) => {
-                  const value = String(option.value);
-                  const selected = multi.includes(value);
-                  return (
-                    <Chip
-                      key={value}
-                      label={option.label}
-                      selected={selected}
-                      onPress={() =>
-                        setMulti(selected ? multi.filter((v) => v !== value) : [...multi, value])
-                      }
-                    />
-                  );
-                })}
-              </Row>
-              <Button
-                label={multi.length ? 'Valider' : step.noneLabel}
-                onPress={() =>
-                  answer(
-                    multi as Profile[keyof Profile],
-                    multi.length
-                      ? step.options
-                          .filter((o) => multi.includes(String(o.value)))
-                          .map((o) => o.label)
-                          .join(', ')
-                      : step.noneLabel,
-                  )
-                }
-              />
-            </>
           )}
         </View>
       </KeyboardAvoidingView>

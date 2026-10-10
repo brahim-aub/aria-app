@@ -21,7 +21,7 @@
       "package": "com.ariacoach.app"
     },
     "web": {
-      "output": "static",
+      "output": "single",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [

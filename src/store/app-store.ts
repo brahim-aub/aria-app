@@ -1,9 +1,10 @@
-import Storage from 'expo-sqlite/kv-store';
+import { useSyncExternalStore } from 'react';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { buildSession, type SessionOptions } from '@/lib/program';
 import type { CompletedSession, Feeling, Profile, Session } from '@/lib/types';
+import { appStorage } from '@/store/storage';
 
 /** Profil utilisé par le bouton de test qui saute l'onboarding. */
 export const TEST_PROFILE: Profile = {
@@ -23,7 +24,6 @@ export const TEST_PROFILE: Profile = {
 const FEELING_DELTA: Record<Feeling, number> = { facile: 0.1, bien: 0, dur: -0.1 };
 
 interface AppState {
-  hasHydrated: boolean;
   profile: Profile | null;
   /** Pas encore de comptes : tout est stocké sur le téléphone en mode invité. */
   isGuest: boolean;
@@ -58,7 +58,6 @@ export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
       ...initialState,
-      hasHydrated: false,
 
       completeOnboarding: (profile) =>
         set({ profile, todaySession: buildSession(profile, { intensity: get().intensity }) }),
@@ -93,7 +92,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'aria-state',
-      storage: createJSONStorage(() => Storage),
+      storage: createJSONStorage(() => appStorage),
       partialize: ({ profile, isGuest, testMode, intensity, todaySession, history }) => ({
         profile,
         isGuest,
@@ -102,7 +101,14 @@ export const useAppStore = create<AppState>()(
         todaySession,
         history,
       }),
-      onRehydrateStorage: () => () => useAppStore.setState({ hasHydrated: true }),
     },
   ),
 );
+
+const subscribeHydration = (callback: () => void) => useAppStore.persist.onFinishHydration(callback);
+const getHydrated = () => useAppStore.persist.hasHydrated();
+
+/** Vrai une fois les données stockées sur l'appareil chargées. */
+export function useHasHydrated() {
+  return useSyncExternalStore(subscribeHydration, getHydrated, getHydrated);
+}

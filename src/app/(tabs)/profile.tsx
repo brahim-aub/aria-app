@@ -1,9 +1,10 @@
 import { useRouter } from 'expo-router';
-import { Alert, StyleSheet, Text } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 
 import { Body, Button, Card, Screen, Title } from '@/components/ui';
 import { Colors } from '@/constants/theme';
 import { ZONE_LABELS } from '@/data/exercises';
+import { confirmAction } from '@/lib/confirm';
 import { computeNutrition } from '@/lib/nutrition';
 import type { Goal } from '@/lib/types';
 import { useAppStore } from '@/store/app-store';
@@ -29,20 +30,14 @@ export default function ProfileScreen() {
   const nutrition = computeNutrition(profile);
 
   const confirmReset = () =>
-    Alert.alert(
+    confirmAction(
       'Tout effacer ?',
       'Ton profil, tes séances et ta progression seront supprimés de ce téléphone.',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Effacer',
-          style: 'destructive',
-          onPress: () => {
-            resetAll();
-            router.replace('/onboarding');
-          },
-        },
-      ],
+      'Effacer',
+      () => {
+        resetAll();
+        router.replace('/onboarding');
+      },
     );
 
   return (

@@ -11,6 +11,8 @@ npx expo start
 
 Scanne le QR code avec l'appli Expo Go sur ton téléphone Android, ou lance un émulateur avec `a`.
 
+Pour tester dans le navigateur, lance `npm run web` (ou appuie sur `w` dans `npx expo start`). Sur le web, les données sont gardées dans le navigateur (localStorage) au lieu de SQLite.
+
 ## Vérifications
 
 ```bash

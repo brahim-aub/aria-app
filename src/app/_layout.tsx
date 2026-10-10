@@ -4,12 +4,12 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
 import { Colors } from '@/constants/theme';
-import { useAppStore } from '@/store/app-store';
+import { useHasHydrated } from '@/store/app-store';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const hasHydrated = useAppStore((state) => state.hasHydrated);
+  const hasHydrated = useHasHydrated();
 
   useEffect(() => {
     if (hasHydrated) SplashScreen.hideAsync();

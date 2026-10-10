@@ -1,11 +1,12 @@
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Body, Button, Card, Chip, ProgressBar, Row, Screen } from '@/components/ui';
 import { Colors, Spacing } from '@/constants/theme';
 import { getExercise } from '@/data/exercises';
+import { confirmAction } from '@/lib/confirm';
 import type { Exercise, Feeling, Session } from '@/lib/types';
 import { useAppStore } from '@/store/app-store';
 
@@ -114,10 +115,12 @@ export default function SessionPlayer() {
   };
 
   const quit = () =>
-    Alert.alert('Arrêter la séance ?', 'Ta progression sur cette séance ne sera pas enregistrée.', [
-      { text: 'Continuer', style: 'cancel' },
-      { text: 'Arrêter', style: 'destructive', onPress: () => router.back() },
-    ]);
+    confirmAction(
+      'Arrêter la séance ?',
+      'Ta progression sur cette séance ne sera pas enregistrée.',
+      'Arrêter',
+      () => router.back(),
+    );
 
   const nextWork = phases.slice(phaseIndex + 1).find((p) => p.type === 'work');
   const nextExercise = nextWork ? exerciseFor(nextWork.stepIndex) : undefined;
