@@ -1,4 +1,4 @@
-import type { Category, Exercise, Zone } from '@/lib/types';
+import type { Category, Exercise, Level, Zone } from '@/lib/types';
 
 /**
  * Bibliothèque fixe d'exercices. Le coach IA composera les séances à partir de cette liste,
@@ -435,4 +435,11 @@ export const ZONE_LABELS: Record<Zone, string> = {
   genoux: 'Genoux',
   dos: 'Dos',
   epaules: 'Épaules',
+};
+
+/** Niveau d'un exercice, en mots qu'un débutant comprend. */
+export const LEVEL_LABELS: Record<Level, string> = {
+  1: 'Facile',
+  2: 'Moyen',
+  3: 'Difficile',
 };

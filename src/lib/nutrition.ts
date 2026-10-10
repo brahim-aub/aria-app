@@ -10,8 +10,11 @@ export interface NutritionTargets {
   carbsG: number;
 }
 
-export function computeNutrition(profile: Profile): NutritionTargets {
-  const { weightKg, heightCm, age, sex, daysPerWeek, goal } = profile;
+/** Renvoie null tant que l'âge, le sexe, la taille et le poids ne sont pas renseignés. */
+export function computeNutrition(profile: Profile): NutritionTargets | null {
+  const { weightKg, heightCm, age, sex, goal } = profile;
+  if (weightKg === null || heightCm === null || age === null || sex === null) return null;
+  const daysPerWeek = profile.trainingDays.length;
   const bmr = 10 * weightKg + 6.25 * heightCm - 5 * age + (sex === 'homme' ? 5 : -161);
   const activity = daysPerWeek >= 4 ? 1.55 : 1.375;
   const maintenance = bmr * activity;

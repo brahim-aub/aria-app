@@ -4,15 +4,24 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
 import { Colors } from '@/constants/theme';
-import { useHasHydrated } from '@/store/app-store';
+import { useAppStore, useHasHydrated } from '@/store/app-store';
 
 SplashScreen.preventAutoHideAsync();
+
+const withHeader = {
+  headerShown: true,
+  headerShadowVisible: false,
+  headerStyle: { backgroundColor: Colors.background },
+  headerTintColor: Colors.text,
+};
 
 export default function RootLayout() {
   const hasHydrated = useHasHydrated();
 
   useEffect(() => {
-    if (hasHydrated) SplashScreen.hideAsync();
+    if (!hasHydrated) return;
+    SplashScreen.hideAsync();
+    useAppStore.getState().track('app_open');
   }, [hasHydrated]);
 
   // On attend que les données stockées sur le téléphone soient chargées avant d'afficher l'appli.
@@ -27,10 +36,11 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: Colors.background },
         }}>
         <Stack.Screen name="session" options={{ presentation: 'fullScreenModal' }} />
-        <Stack.Screen
-          name="exercise/[id]"
-          options={{ headerShown: true, title: '', headerShadowVisible: false }}
-        />
+        <Stack.Screen name="exercise/[id]" options={{ ...withHeader, title: '' }} />
+        <Stack.Screen name="edit-session" options={{ ...withHeader, title: 'Modifier ma séance' }} />
+        <Stack.Screen name="edit-profile" options={{ ...withHeader, title: 'Mon profil' }} />
+        <Stack.Screen name="privacy" options={{ ...withHeader, title: 'Confidentialité' }} />
+        <Stack.Screen name="feedback" options={{ ...withHeader, title: 'Donner mon avis' }} />
       </Stack>
     </>
   );

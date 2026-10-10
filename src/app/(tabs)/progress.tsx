@@ -2,21 +2,25 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Body, Card, ProgressBar, Row, Screen, Title } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
-import { ACHIEVEMENTS, achievementPoints, currentStreak, isUnlocked, totalReps } from '@/lib/stats';
+import { ACHIEVEMENTS, achievementPoints, isUnlocked, totalMinutes, totalReps } from '@/lib/stats';
+import { weekStreak } from '@/lib/week';
 import { useAppStore } from '@/store/app-store';
 
 const FEELING_LABELS = { facile: 'Trop facile', bien: 'Juste bien', dur: 'Trop dur' } as const;
 
 export default function Progress() {
   const history = useAppStore((state) => state.history);
+  const weeklyGoal = useAppStore((state) => state.profile?.trainingDays.length ?? 3);
+  const ctx = { weeklyGoal };
   // Les succès seront réservés aux comptes ; pendant les tests, ils sont débloqués.
   const canSeeAchievements = useAppStore((state) => !state.isGuest || state.testMode);
 
   const stats = [
-    { label: 'Séances', value: history.length },
-    { label: 'Série actuelle', value: currentStreak(history) },
+    { label: 'Séances terminées', value: history.filter((item) => !item.partial).length },
+    { label: 'Semaines réussies d\'affilée', value: weekStreak(history, weeklyGoal) },
+    { label: 'Minutes d\'effort', value: totalMinutes(history) },
     { label: 'Répétitions', value: totalReps(history) },
-    { label: 'Points de succès', value: achievementPoints(history) },
+    { label: 'Points de succès', value: achievementPoints(history, ctx) },
   ];
 
   return (
@@ -34,8 +38,8 @@ export default function Progress() {
       <Text style={styles.section}>Succès</Text>
       {canSeeAchievements ? (
         ACHIEVEMENTS.map((achievement) => {
-          const { value, target } = achievement.progress(history);
-          const unlocked = isUnlocked(achievement, history);
+          const { value, target } = achievement.progress(history, ctx);
+          const unlocked = isUnlocked(achievement, history, ctx);
           return (
             <Card key={achievement.id} style={unlocked ? styles.unlocked : undefined}>
               <View style={styles.achievementHeader}>
@@ -67,7 +71,9 @@ export default function Progress() {
               day: 'numeric',
               month: 'long',
             })}{' '}
-            · {Math.round(item.durationSeconds / 60)} min · {FEELING_LABELS[item.feeling]}
+            · {Math.max(1, Math.round(item.durationSeconds / 60))} min
+            {item.partial ? ' · arrêtée avant la fin' : ''}
+            {item.feeling ? ` · ${FEELING_LABELS[item.feeling]}` : ''}
           </Body>
         </Card>
       ))}

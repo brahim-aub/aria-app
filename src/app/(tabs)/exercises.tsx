@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Body, Chip, Row, Screen, Title } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
-import { CATEGORY_LABELS, EXERCISES } from '@/data/exercises';
+import { CATEGORY_LABELS, EXERCISES, LEVEL_LABELS } from '@/data/exercises';
 import type { Category } from '@/lib/types';
 
 const CATEGORIES = Object.keys(CATEGORY_LABELS) as Category[];
@@ -34,7 +34,7 @@ export default function Exercises() {
             <View style={styles.flex}>
               <Text style={styles.name}>{exercise.name}</Text>
               <Text style={styles.meta}>
-                {CATEGORY_LABELS[exercise.category]} · niveau {exercise.level}
+                {CATEGORY_LABELS[exercise.category]} · {LEVEL_LABELS[exercise.level]}
                 {exercise.equipment.length === 0 ? ' · sans matériel' : ''}
               </Text>
             </View>

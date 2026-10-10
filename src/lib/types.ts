@@ -30,16 +30,28 @@ export interface Exercise {
 
 export interface Profile {
   firstName: string;
-  age: number;
-  sex: Sex;
-  heightCm: number;
-  weightKg: number;
+  /** Mensurations facultatives : elles ne servent qu'au calcul des besoins caloriques. */
+  age: number | null;
+  sex: Sex | null;
+  heightCm: number | null;
+  weightKg: number | null;
   goal: Goal;
   level: Level;
   equipment: Equipment[];
   minutesPerSession: number;
-  daysPerWeek: number;
+  /** Jours d'entraînement, au format de Date.getDay() (0 = dimanche). */
+  trainingDays: number[];
   painZones: Zone[];
+  reminderEnabled: boolean;
+  reminderHour: number;
+}
+
+export interface Consent {
+  /** Accord pour stocker les réponses de santé (poids, douleurs) sur l'appareil. */
+  healthData: boolean;
+  /** Accord pour des statistiques d'usage anonymes. */
+  analytics: boolean;
+  acceptedAt: string | null;
 }
 
 export interface SessionStep {
@@ -66,7 +78,10 @@ export interface CompletedSession {
   title: string;
   completedAt: string;
   durationSeconds: number;
-  feeling: Feeling;
+  /** Ressenti donné en fin de séance ; absent si la personne ne l'a pas indiqué. */
+  feeling?: Feeling;
+  /** Séance arrêtée avant la fin. */
+  partial?: boolean;
   /** Total de répétitions par exercice, pour les succès. */
   reps: Record<string, number>;
 }

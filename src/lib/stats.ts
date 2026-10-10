@@ -1,41 +1,5 @@
 import type { CompletedSession } from '@/lib/types';
-
-function dayKey(date: Date) {
-  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-}
-
-/** Nombre de jours d'affilée avec au moins une séance, en comptant aujourd'hui ou hier. */
-export function currentStreak(history: CompletedSession[], now = new Date()) {
-  const days = new Set(history.map((item) => dayKey(new Date(item.completedAt))));
-  const cursor = new Date(now);
-  if (!days.has(dayKey(cursor))) cursor.setDate(cursor.getDate() - 1);
-  let streak = 0;
-  while (days.has(dayKey(cursor))) {
-    streak += 1;
-    cursor.setDate(cursor.getDate() - 1);
-  }
-  return streak;
-}
-
-/** Plus longue série de jours consécutifs jamais atteinte. */
-export function bestStreak(history: CompletedSession[]) {
-  const days = Array.from(
-    new Set(
-      history.map((item) => {
-        const d = new Date(item.completedAt);
-        return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-      }),
-    ),
-  ).sort((a, b) => a - b);
-  let best = 0;
-  let run = 0;
-  for (let i = 0; i < days.length; i++) {
-    const gapDays = i === 0 ? 0 : Math.round((days[i] - days[i - 1]) / 86_400_000);
-    run = gapDays === 1 ? run + 1 : 1;
-    best = Math.max(best, run);
-  }
-  return best;
-}
+import { bestWeekStreak } from '@/lib/week';
 
 export function totalReps(history: CompletedSession[], exerciseIds?: string[]) {
   let total = 0;
@@ -47,13 +11,22 @@ export function totalReps(history: CompletedSession[], exerciseIds?: string[]) {
   return total;
 }
 
+export function totalMinutes(history: CompletedSession[]) {
+  return Math.round(history.reduce((sum, item) => sum + item.durationSeconds, 0) / 60);
+}
+
+export interface StatsContext {
+  /** Nombre de séances prévues par semaine. */
+  weeklyGoal: number;
+}
+
 export interface Achievement {
   id: string;
   title: string;
   description: string;
   points: number;
   /** Progression actuelle et objectif, pour afficher une barre. */
-  progress: (history: CompletedSession[]) => { value: number; target: number };
+  progress: (history: CompletedSession[], ctx: StatsContext) => { value: number; target: number };
 }
 
 const PUSH_UPS = ['pompes', 'pompes-genoux', 'pompes-mur'];
@@ -64,7 +37,7 @@ function sessionsAchievement(target: number, points: number): Achievement {
     title: target === 1 ? 'Premier pas' : `${target} séances`,
     description: target === 1 ? 'Termine ta première séance.' : `Termine ${target} séances.`,
     points,
-    progress: (history) => ({ value: history.length, target }),
+    progress: (history) => ({ value: history.filter((item) => !item.partial).length, target }),
   };
 }
 
@@ -78,13 +51,13 @@ function pushUpsAchievement(target: number, points: number): Achievement {
   };
 }
 
-function streakAchievement(target: number, points: number): Achievement {
+function weeksAchievement(target: number, points: number): Achievement {
   return {
-    id: `serie-${target}`,
-    title: `${target} jours d'affilée`,
-    description: `Entraîne-toi ${target} jours de suite.`,
+    id: `semaines-${target}`,
+    title: `${target} semaines réussies`,
+    description: `Fais toutes tes séances prévues ${target} semaines de suite.`,
     points,
-    progress: (history) => ({ value: bestStreak(history), target }),
+    progress: (history, ctx) => ({ value: bestWeekStreak(history, ctx.weeklyGoal), target }),
   };
 }
 
@@ -93,18 +66,22 @@ export const ACHIEVEMENTS: Achievement[] = [
   sessionsAchievement(5, 20),
   sessionsAchievement(10, 30),
   sessionsAchievement(25, 50),
-  streakAchievement(3, 15),
-  streakAchievement(7, 40),
+  weeksAchievement(1, 15),
+  weeksAchievement(4, 40),
   pushUpsAchievement(100, 15),
   pushUpsAchievement(1000, 40),
   pushUpsAchievement(10000, 100),
 ];
 
-export function isUnlocked(achievement: Achievement, history: CompletedSession[]) {
-  const { value, target } = achievement.progress(history);
+export function isUnlocked(achievement: Achievement, history: CompletedSession[], ctx: StatsContext) {
+  const { value, target } = achievement.progress(history, ctx);
   return value >= target;
 }
 
-export function achievementPoints(history: CompletedSession[]) {
-  return ACHIEVEMENTS.filter((a) => isUnlocked(a, history)).reduce((sum, a) => sum + a.points, 0);
+export function unlockedIds(history: CompletedSession[], ctx: StatsContext) {
+  return ACHIEVEMENTS.filter((a) => isUnlocked(a, history, ctx)).map((a) => a.id);
+}
+
+export function achievementPoints(history: CompletedSession[], ctx: StatsContext) {
+  return ACHIEVEMENTS.filter((a) => isUnlocked(a, history, ctx)).reduce((sum, a) => sum + a.points, 0);
 }

@@ -51,7 +51,7 @@ export function adaptExercise(
   return undefined;
 }
 
-function candidatesFor(category: Category, profile: Profile, avoided: Zone[]) {
+export function candidatesFor(category: Category, profile: Profile, avoided: Zone[]) {
   const result: Exercise[] = [];
   for (const exercise of EXERCISES) {
     if (exercise.category !== category) continue;
@@ -64,6 +64,25 @@ function candidatesFor(category: Category, profile: Profile, avoided: Zone[]) {
 
 function workSeconds(exercise: Exercise, amount: number) {
   return exercise.mode === 'time' ? amount : amount * SECONDS_PER_REP;
+}
+
+export function makeStep(
+  exercise: Exercise,
+  sets: number,
+  restSeconds: number,
+  intensity: number,
+): SessionStep {
+  return {
+    exerciseId: exercise.id,
+    sets,
+    amount: Math.max(5, Math.round(exercise.amount * intensity)),
+    restSeconds,
+  };
+}
+
+/** Temps de repos entre les séries pour le niveau de la personne. */
+export function restFor(profile: Profile) {
+  return REST_BY_LEVEL[profile.level];
 }
 
 export function estimateSeconds(steps: SessionStep[]) {
@@ -90,12 +109,8 @@ export function buildSession(profile: Profile, options: SessionOptions = {}): Se
     return chosen;
   };
 
-  const toStep = (exercise: Exercise, sets: number, restSeconds: number): SessionStep => ({
-    exerciseId: exercise.id,
-    sets,
-    amount: Math.max(5, Math.round(exercise.amount * intensity)),
-    restSeconds,
-  });
+  const toStep = (exercise: Exercise, sets: number, restSeconds: number): SessionStep =>
+    makeStep(exercise, sets, restSeconds, intensity);
 
   const warmUp = [pick('mobilite', 0), pick('cardio', 1)]
     .filter((e): e is Exercise => Boolean(e))

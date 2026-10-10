@@ -3,7 +3,7 @@ import { StyleSheet, Text } from 'react-native';
 
 import { Body, Card, Screen, Title } from '@/components/ui';
 import { Colors } from '@/constants/theme';
-import { CATEGORY_LABELS, getExercise, ZONE_LABELS } from '@/data/exercises';
+import { CATEGORY_LABELS, getExercise, LEVEL_LABELS, ZONE_LABELS } from '@/data/exercises';
 
 export default function ExerciseDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -23,7 +23,7 @@ export default function ExerciseDetail() {
     <Screen edges={[]}>
       <Title>{exercise.name}</Title>
       <Body muted>
-        {CATEGORY_LABELS[exercise.category]} · niveau {exercise.level} ·{' '}
+        {CATEGORY_LABELS[exercise.category]} · {LEVEL_LABELS[exercise.level]} ·{' '}
         {exercise.mode === 'time' ? `${exercise.amount} secondes` : `${exercise.amount} répétitions`}
       </Body>
 
@@ -48,8 +48,9 @@ export default function ExerciseDetail() {
 
       {exercise.stresses.length > 0 && (
         <Card>
-          <Text style={styles.section}>Zones sollicitées</Text>
+          <Text style={styles.section}>Articulations sollicitées</Text>
           <Body>{exercise.stresses.map((zone) => ZONE_LABELS[zone]).join(', ')}</Body>
+          <Body muted>Si l&apos;une d&apos;elles te fait mal, prends la version plus douce ou passe l&apos;exercice.</Body>
           {easier && (
             <Link href={{ pathname: '/exercise/[id]', params: { id: easier.id } }} style={styles.link}>
               Version plus douce : {easier.name} ›
