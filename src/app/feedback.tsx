@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { StyleSheet, TextInput } from 'react-native';
 
 import { Body, Button, Card, Screen } from '@/components/ui';
-import { Colors, Radius, Spacing } from '@/constants/theme';
+import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { useAppStore } from '@/store/app-store';
 
 export default function FeedbackScreen() {
@@ -45,6 +45,7 @@ const styles = StyleSheet.create({
   input: {
     minHeight: 140,
     fontSize: 16,
+    fontFamily: Fonts.medium,
     color: Colors.text,
     borderRadius: Radius.md,
     padding: Spacing.sm,

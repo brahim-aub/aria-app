@@ -1,7 +1,18 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { Body, Card, ProgressBar, Row, Screen, Title } from '@/components/ui';
-import { Colors, Radius, Spacing } from '@/constants/theme';
+import {
+  Badge,
+  Body,
+  Card,
+  IconTile,
+  type IconName,
+  ProgressBar,
+  Screen,
+  SectionHeader,
+  Title,
+} from '@/components/ui';
+import { Colors, Fonts, Radius, Shadow, Spacing } from '@/constants/theme';
 import { ACHIEVEMENTS, achievementPoints, isUnlocked, totalMinutes, totalReps } from '@/lib/stats';
 import { weekStreak } from '@/lib/week';
 import { useAppStore } from '@/store/app-store';
@@ -11,92 +22,178 @@ const FEELING_LABELS = { facile: 'Trop facile', bien: 'Juste bien', dur: 'Trop d
 export default function Progress() {
   const history = useAppStore((state) => state.history);
   const weeklyGoal = useAppStore((state) => state.profile?.trainingDays.length ?? 3);
-  const ctx = { weeklyGoal };
   // Les succès seront réservés aux comptes ; pendant les tests, ils sont débloqués.
   const canSeeAchievements = useAppStore((state) => !state.isGuest || state.testMode);
+  const ctx = { weeklyGoal };
 
-  const stats = [
-    { label: 'Séances terminées', value: history.filter((item) => !item.partial).length },
-    { label: 'Semaines réussies d\'affilée', value: weekStreak(history, weeklyGoal) },
-    { label: 'Minutes d\'effort', value: totalMinutes(history) },
-    { label: 'Répétitions', value: totalReps(history) },
-    { label: 'Points de succès', value: achievementPoints(history, ctx) },
+  const unlockedCount = ACHIEVEMENTS.filter((a) => isUnlocked(a, history, ctx)).length;
+  const stats: { label: string; value: number; icon: IconName; tint: string; color: string }[] = [
+    {
+      label: 'Séances terminées',
+      value: history.filter((item) => !item.partial).length,
+      icon: 'checkmark-circle',
+      tint: '#DEF5EA',
+      color: '#12895A',
+    },
+    {
+      label: 'Semaines réussies d\'affilée',
+      value: weekStreak(history, weeklyGoal),
+      icon: 'flame',
+      tint: '#FFEDE2',
+      color: '#D9561C',
+    },
+    { label: 'Minutes d\'effort', value: totalMinutes(history), icon: 'time', tint: '#E2EFFF', color: '#2468D8' },
+    { label: 'Répétitions', value: totalReps(history), icon: 'barbell', tint: '#ECE9FF', color: '#5B45E0' },
   ];
 
   return (
     <Screen>
-      <Title>Progrès</Title>
-      <Row>
+      <Title style={styles.title}>Progrès</Title>
+
+      <Card variant="dark" style={styles.hero}>
+        <Text style={styles.heroEyebrow}>Points de succès</Text>
+        <Text style={styles.heroValue}>{achievementPoints(history, ctx).toLocaleString('fr-FR')}</Text>
+        <Text style={styles.heroMeta}>
+          {unlockedCount} succès sur {ACHIEVEMENTS.length} débloqués
+        </Text>
+        <ProgressBar value={unlockedCount / ACHIEVEMENTS.length} color={Colors.accent} track={Colors.inkSoft} />
+      </Card>
+
+      <View style={styles.grid}>
         {stats.map((stat) => (
           <View key={stat.label} style={styles.stat}>
+            <IconTile icon={stat.icon} tint={stat.tint} color={stat.color} size={38} />
             <Text style={styles.statValue}>{stat.value.toLocaleString('fr-FR')}</Text>
             <Text style={styles.statLabel}>{stat.label}</Text>
           </View>
         ))}
-      </Row>
+      </View>
 
-      <Text style={styles.section}>Succès</Text>
+      <SectionHeader title="Succès" />
       {canSeeAchievements ? (
-        ACHIEVEMENTS.map((achievement) => {
-          const { value, target } = achievement.progress(history, ctx);
-          const unlocked = isUnlocked(achievement, history, ctx);
-          return (
-            <Card key={achievement.id} style={unlocked ? styles.unlocked : undefined}>
-              <View style={styles.achievementHeader}>
+        <View style={styles.grid}>
+          {ACHIEVEMENTS.map((achievement) => {
+            const { value, target } = achievement.progress(history, ctx);
+            const unlocked = isUnlocked(achievement, history, ctx);
+            return (
+              <View key={achievement.id} style={styles.achievement}>
+                <View style={styles.achievementTop}>
+                  <View style={[styles.medal, unlocked && styles.medalUnlocked]}>
+                    <Ionicons
+                      name={unlocked ? 'medal' : 'lock-closed'}
+                      size={20}
+                      color={unlocked ? Colors.ink : Colors.textSecondary}
+                    />
+                  </View>
+                  <Badge label={`${achievement.points} pts`} tone={unlocked ? 'accent' : 'neutral'} />
+                </View>
                 <Text style={styles.achievementTitle}>{achievement.title}</Text>
-                <Text style={styles.points}>{achievement.points} pts</Text>
+                <Text style={styles.achievementText}>{achievement.description}</Text>
+                <ProgressBar value={value / target} height={6} color={unlocked ? Colors.accentDeep : Colors.ink} />
+                <Text style={styles.achievementText}>
+                  {Math.min(value, target).toLocaleString('fr-FR')} / {target.toLocaleString('fr-FR')}
+                </Text>
               </View>
-              <Body muted>{achievement.description}</Body>
-              <ProgressBar value={value / target} color={unlocked ? Colors.accent : Colors.textSecondary} />
-              <Text style={styles.progressText}>
-                {Math.min(value, target).toLocaleString('fr-FR')} / {target.toLocaleString('fr-FR')}
-              </Text>
-            </Card>
-          );
-        })
+            );
+          })}
+        </View>
       ) : (
         <Card>
           <Body>Crée un compte pour débloquer les succès et garder ta progression.</Body>
         </Card>
       )}
 
-      <Text style={styles.section}>Historique</Text>
-      {history.length === 0 && <Body muted>Ta première séance apparaîtra ici.</Body>}
-      {history.slice(0, 20).map((item) => (
-        <Card key={item.completedAt}>
-          <Text style={styles.achievementTitle}>{item.title}</Text>
-          <Body muted>
-            {new Date(item.completedAt).toLocaleDateString('fr-FR', {
-              weekday: 'long',
-              day: 'numeric',
-              month: 'long',
-            })}{' '}
-            · {Math.max(1, Math.round(item.durationSeconds / 60))} min
-            {item.partial ? ' · arrêtée avant la fin' : ''}
-            {item.feeling ? ` · ${FEELING_LABELS[item.feeling]}` : ''}
-          </Body>
+      <SectionHeader title="Historique" />
+      {history.length === 0 ? (
+        <Card variant="soft">
+          <Body muted>Ta première séance apparaîtra ici.</Body>
         </Card>
-      ))}
+      ) : (
+        <Card style={styles.list}>
+          {history.slice(0, 20).map((item) => {
+            const date = new Date(item.completedAt);
+            return (
+              <View key={item.completedAt} style={styles.historyRow}>
+                <View style={styles.dateTile}>
+                  <Text style={styles.dateDay}>{date.getDate()}</Text>
+                  <Text style={styles.dateMonth}>
+                    {date.toLocaleDateString('fr-FR', { month: 'short' }).replace('.', '')}
+                  </Text>
+                </View>
+                <View style={styles.flex}>
+                  <Text style={styles.historyTitle}>{item.title}</Text>
+                  <Text style={styles.achievementText}>
+                    {Math.max(1, Math.round(item.durationSeconds / 60))} min
+                    {item.partial ? ' · arrêtée avant la fin' : ''}
+                    {item.feeling ? ` · ${FEELING_LABELS[item.feeling]}` : ''}
+                  </Text>
+                </View>
+              </View>
+            );
+          })}
+        </Card>
+      )}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  title: { marginTop: Spacing.sm },
+  hero: { padding: Spacing.lg, gap: Spacing.sm },
+  heroEyebrow: {
+    fontSize: 12,
+    fontFamily: Fonts.bold,
+    color: Colors.textOnDarkMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
+  heroValue: { fontSize: 48, lineHeight: 54, fontFamily: Fonts.extrabold, color: Colors.accent, letterSpacing: -1 },
+  heroMeta: { fontSize: 14, fontFamily: Fonts.medium, color: Colors.textOnDarkMuted, marginBottom: Spacing.xs },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm + 2 },
   stat: {
     width: '48%',
     flexGrow: 1,
     backgroundColor: Colors.card,
-    borderRadius: Radius.md,
+    borderRadius: Radius.lg,
     padding: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    gap: 6,
+    ...Shadow,
   },
-  statValue: { fontSize: 26, fontWeight: '600', color: Colors.text, fontVariant: ['tabular-nums'] },
-  statLabel: { fontSize: 14, color: Colors.textSecondary, fontWeight: '600' },
-  section: { fontSize: 20, fontWeight: '600', color: Colors.text, marginTop: Spacing.sm },
-  unlocked: { borderColor: Colors.accent },
-  achievementHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  achievementTitle: { fontSize: 17, fontWeight: '600', color: Colors.text },
-  points: { fontSize: 14, fontWeight: '500', color: Colors.textSecondary },
-  progressText: { fontSize: 13, color: Colors.textSecondary },
+  statValue: { fontSize: 26, lineHeight: 32, fontFamily: Fonts.extrabold, color: Colors.text, marginTop: Spacing.xs },
+  statLabel: { fontSize: 13, lineHeight: 18, fontFamily: Fonts.medium, color: Colors.textSecondary },
+  achievement: {
+    width: '48%',
+    flexGrow: 1,
+    backgroundColor: Colors.card,
+    borderRadius: Radius.lg,
+    padding: Spacing.md,
+    gap: 6,
+    ...Shadow,
+  },
+  achievementTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  medal: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  medalUnlocked: { backgroundColor: Colors.accent },
+  achievementTitle: { fontSize: 15, lineHeight: 20, fontFamily: Fonts.bold, color: Colors.text },
+  achievementText: { fontSize: 13, lineHeight: 18, fontFamily: Fonts.regular, color: Colors.textSecondary },
+  list: { paddingVertical: Spacing.sm, gap: 0 },
+  historyRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingVertical: 10 },
+  dateTile: {
+    width: 46,
+    height: 50,
+    borderRadius: Radius.sm + 2,
+    backgroundColor: Colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dateDay: { fontSize: 18, lineHeight: 22, fontFamily: Fonts.extrabold, color: Colors.text },
+  dateMonth: { fontSize: 11, fontFamily: Fonts.semibold, color: Colors.textSecondary, textTransform: 'uppercase' },
+  historyTitle: { fontSize: 16, fontFamily: Fonts.semibold, color: Colors.text },
 });

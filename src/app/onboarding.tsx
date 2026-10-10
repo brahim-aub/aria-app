@@ -1,4 +1,6 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Link, useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -12,8 +14,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Body, Button, Chip, Row, Title } from '@/components/ui';
-import { Colors, Radius, Spacing } from '@/constants/theme';
+import { Button, Chip, IconTile, type IconName, ProgressBar, Row } from '@/components/ui';
+import { Colors, Fonts, Radius, Shadow, Spacing } from '@/constants/theme';
 import { EQUIPMENT_LABELS, GOAL_LABELS, MINUTE_OPTIONS } from '@/lib/labels';
 import { remindersSupported, syncReminders } from '@/lib/reminders';
 import type { Consent, Level, Profile } from '@/lib/types';
@@ -383,7 +385,7 @@ function Checkbox({ checked, label, onPress }: { checked: boolean; label: string
       onPress={onPress}
       style={styles.checkRow}>
       <View style={[styles.box, checked && styles.boxChecked]}>
-        {checked && <Text style={styles.check}>✓</Text>}
+        {checked && <Ionicons name="checkmark" size={16} color={Colors.accent} />}
       </View>
       <Text style={styles.checkLabel}>{label}</Text>
     </Pressable>
@@ -391,6 +393,12 @@ function Checkbox({ checked, label, onPress }: { checked: boolean; label: string
 }
 
 type Snapshot = { stepIndex: number; answers: Answers; messages: Message[] };
+
+const WELCOME_POINTS: { icon: IconName; text: string }[] = [
+  { icon: 'chatbubble-ellipses', text: 'Quelques questions, deux minutes à peine' },
+  { icon: 'flash', text: 'Une première séance prête tout de suite' },
+  { icon: 'lock-closed', text: 'Tout reste sur ton téléphone, sans compte' },
+];
 
 const FIRST_MESSAGES: Message[] = [{ from: 'coach', text: STEPS[0].question({}) }];
 
@@ -458,28 +466,38 @@ export default function Onboarding() {
 
   if (!started) {
     return (
-      <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+      <SafeAreaView style={[styles.screen, styles.dark]} edges={['top', 'bottom']}>
+        <StatusBar style="light" />
         <View style={styles.header}>
-          <Text style={styles.brand}>Aria</Text>
+          <View style={styles.brandRow}>
+            <View style={styles.brandDot} />
+            <Text style={styles.brand}>Aria</Text>
+          </View>
           {/* Bouton temporaire pour les tests : il sera retiré avant la publication. */}
           <Pressable onPress={skipForTests} hitSlop={12}>
-            <Text style={styles.skip}>Passer (test)</Text>
+            <Text style={styles.skipDark}>Passer (test)</Text>
           </Pressable>
         </View>
         <View style={styles.welcome}>
-          <Title>Le sport à la maison, à ton rythme.</Title>
-          <Body muted>
+          <Text style={styles.hero}>
+            Le sport à la maison,{'\n'}
+            <Text style={styles.heroAccent}>à ton rythme.</Text>
+          </Text>
+          <Text style={styles.heroBody}>
             Des séances courtes, sans matériel, qui s&apos;adaptent à ton niveau, à ton temps et à
             tes douleurs.
-          </Body>
+          </Text>
           <View style={styles.points}>
-            <Body>· Quelques questions, deux minutes à peine</Body>
-            <Body>· Une première séance prête tout de suite</Body>
-            <Body>· Tout reste sur ton téléphone, sans compte</Body>
+            {WELCOME_POINTS.map((point) => (
+              <View key={point.text} style={styles.point}>
+                <IconTile icon={point.icon} tint={Colors.inkSoft} color={Colors.accent} size={44} />
+                <Text style={styles.pointText}>{point.text}</Text>
+              </View>
+            ))}
           </View>
         </View>
-        <View style={styles.inputArea}>
-          <Button label="Commencer" onPress={() => setStarted(true)} />
+        <View style={styles.welcomeFooter}>
+          <Button label="Commencer" icon="arrow-forward" variant="accent" onPress={() => setStarted(true)} />
         </View>
       </SafeAreaView>
     );
@@ -487,10 +505,19 @@ export default function Onboarding() {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+      <StatusBar style="dark" />
       <View style={styles.header}>
-        <Pressable onPress={back} hitSlop={12} accessibilityRole="button" accessibilityLabel="Retour">
-          <Text style={styles.back}>‹ Retour</Text>
+        <Pressable
+          onPress={back}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Retour"
+          style={styles.backButton}>
+          <Ionicons name="chevron-back" size={22} color={Colors.text} />
         </Pressable>
+        <View style={styles.progress}>
+          <ProgressBar value={step ? stepIndex / STEPS.length : 1} color={Colors.ink} height={6} />
+        </View>
         <Pressable onPress={skipForTests} hitSlop={12}>
           <Text style={styles.skip}>Passer (test)</Text>
         </Pressable>
@@ -504,15 +531,30 @@ export default function Onboarding() {
           style={styles.flex}
           contentContainerStyle={styles.messages}
           onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}>
-          {messages.map((message, index) => (
-            <View
-              key={index}
-              style={[styles.bubble, message.from === 'coach' ? styles.coach : styles.user]}>
-              <Text style={[styles.bubbleText, message.from === 'user' && styles.userText]}>
-                {message.text}
-              </Text>
-            </View>
-          ))}
+          {messages.map((message, index) => {
+            const firstOfGroup = index === 0 || messages[index - 1].from !== message.from;
+            if (message.from === 'user') {
+              return (
+                <View key={index} style={[styles.bubble, styles.user]}>
+                  <Text style={[styles.bubbleText, styles.userText]}>{message.text}</Text>
+                </View>
+              );
+            }
+            return (
+              <View key={index} style={styles.coachRow}>
+                {firstOfGroup ? (
+                  <View style={styles.coachAvatar}>
+                    <Text style={styles.coachAvatarText}>A</Text>
+                  </View>
+                ) : (
+                  <View style={styles.coachAvatarSpacer} />
+                )}
+                <View style={[styles.bubble, styles.coach]}>
+                  <Text style={styles.bubbleText}>{message.text}</Text>
+                </View>
+              </View>
+            );
+          })}
         </ScrollView>
 
         <View style={styles.inputArea}>
@@ -525,65 +567,90 @@ export default function Onboarding() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
+  dark: { backgroundColor: Colors.ink },
   flex: { flex: 1 },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: Spacing.md,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
   },
-  brand: { fontSize: 22, fontWeight: '700', color: Colors.text, letterSpacing: -0.5 },
-  back: { fontSize: 16, color: Colors.text, fontWeight: '600' },
-  skip: { fontSize: 15, color: Colors.textSecondary, fontWeight: '600' },
-  welcome: { flex: 1, justifyContent: 'center', padding: Spacing.lg, gap: Spacing.md },
-  points: { gap: Spacing.xs, marginTop: Spacing.sm },
-  messages: { padding: Spacing.md, gap: Spacing.sm },
-  bubble: { maxWidth: '85%', padding: 14, borderRadius: Radius.md },
-  coach: {
-    alignSelf: 'flex-start',
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  brandDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: Colors.accent },
+  brand: { fontSize: 22, fontFamily: Fonts.extrabold, color: Colors.white, letterSpacing: -0.5 },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: Colors.card,
-    borderBottomLeftRadius: 4,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadow,
   },
-  user: { alignSelf: 'flex-end', backgroundColor: Colors.primary, borderBottomRightRadius: 4 },
-  bubbleText: { fontSize: 16, lineHeight: 22, color: Colors.text },
-  userText: { color: Colors.white },
+  progress: { flex: 1 },
+  skip: { fontSize: 14, color: Colors.textSecondary, fontFamily: Fonts.semibold },
+  skipDark: { fontSize: 14, color: Colors.textOnDarkMuted, fontFamily: Fonts.semibold },
+  welcome: { flex: 1, justifyContent: 'center', paddingHorizontal: Spacing.lg, gap: Spacing.md },
+  hero: { fontSize: 40, lineHeight: 46, fontFamily: Fonts.extrabold, color: Colors.white, letterSpacing: -1.2 },
+  heroAccent: { color: Colors.accent },
+  heroBody: { fontSize: 17, lineHeight: 25, fontFamily: Fonts.regular, color: Colors.textOnDarkMuted },
+  points: { gap: Spacing.md, marginTop: Spacing.lg },
+  point: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  pointText: { flex: 1, fontSize: 16, lineHeight: 22, fontFamily: Fonts.semibold, color: Colors.white },
+  welcomeFooter: { padding: Spacing.lg },
+  messages: { padding: Spacing.md, gap: Spacing.sm },
+  coachRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
+  coachAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  coachAvatarText: { fontSize: 14, fontFamily: Fonts.extrabold, color: Colors.accent },
+  coachAvatarSpacer: { width: 32 },
+  bubble: { maxWidth: '82%', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 20 },
+  coach: { backgroundColor: Colors.card, borderTopLeftRadius: 6, ...Shadow },
+  user: { alignSelf: 'flex-end', backgroundColor: Colors.ink, borderBottomRightRadius: 6 },
+  bubbleText: { fontSize: 16, lineHeight: 23, fontFamily: Fonts.regular, color: Colors.text },
+  userText: { color: Colors.white, fontFamily: Fonts.medium },
   inputArea: {
     padding: Spacing.md,
-    gap: Spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    gap: Spacing.sm + 2,
+    backgroundColor: Colors.card,
+    borderTopLeftRadius: Radius.lg,
+    borderTopRightRadius: Radius.lg,
+    boxShadow: '0px -6px 24px rgba(14, 15, 18, 0.06)',
   },
   inputRow: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'center' },
   input: {
     flex: 1,
-    backgroundColor: Colors.card,
+    backgroundColor: Colors.background,
     borderRadius: Radius.pill,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 12,
+    paddingHorizontal: Spacing.md + 2,
+    paddingVertical: 14,
     fontSize: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    fontFamily: Fonts.medium,
+    color: Colors.text,
   },
   hintRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  hint: { fontSize: 14, color: Colors.textSecondary },
-  hintError: { color: Colors.text, fontWeight: '600' },
-  skipLink: { fontSize: 15, color: Colors.textSecondary, fontWeight: '600', textDecorationLine: 'underline' },
-  checkRow: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'flex-start' },
+  hint: { fontSize: 13, fontFamily: Fonts.medium, color: Colors.textSecondary },
+  hintError: { color: Colors.coral, fontFamily: Fonts.bold },
+  skipLink: { fontSize: 14, color: Colors.textSecondary, fontFamily: Fonts.semibold, textDecorationLine: 'underline' },
+  checkRow: { flexDirection: 'row', gap: Spacing.sm + 2, alignItems: 'flex-start' },
   box: {
-    width: 22,
-    height: 22,
-    marginTop: 1,
-    borderRadius: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 8,
     borderWidth: 1.5,
-    borderColor: Colors.text,
+    borderColor: Colors.textSecondary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  boxChecked: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  check: { color: Colors.white, fontSize: 14, fontWeight: '700' },
-  checkLabel: { flex: 1, fontSize: 14, lineHeight: 20, color: Colors.text },
-  privacyLink: { fontSize: 14, color: Colors.text, fontWeight: '600', textDecorationLine: 'underline' },
+  boxChecked: { backgroundColor: Colors.ink, borderColor: Colors.ink },
+  checkLabel: { flex: 1, fontSize: 14, lineHeight: 20, fontFamily: Fonts.regular, color: Colors.text },
+  privacyLink: { fontSize: 14, color: Colors.text, fontFamily: Fonts.bold, textDecorationLine: 'underline' },
 });

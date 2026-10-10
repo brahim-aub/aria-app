@@ -1,9 +1,10 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Body, Button, Card, Chip, Row, Screen } from '@/components/ui';
-import { Colors, Radius, Spacing } from '@/constants/theme';
+import { Body, Button, Card, CategoryTile, Chip, Row, Screen } from '@/components/ui';
+import { CategoryIcons, Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { CATEGORY_LABELS, getExercise } from '@/data/exercises';
 import { candidatesFor, estimateSeconds, makeStep, restFor } from '@/lib/program';
 import type { Category, SessionStep } from '@/lib/types';
@@ -75,10 +76,15 @@ export default function EditSession() {
         const unit = exercise.mode === 'time' ? 's' : 'rép.';
         return (
           <Card key={`${step.exerciseId}-${index}`}>
-            <Text style={styles.name}>{exercise.name}</Text>
-            <Text style={styles.meta}>
-              {step.amount} {unit} par série
-            </Text>
+            <View style={styles.header}>
+              <CategoryTile category={exercise.category} size={42} />
+              <View style={styles.flex}>
+                <Text style={styles.name}>{exercise.name}</Text>
+                <Text style={styles.meta}>
+                  {step.amount} {unit} par série
+                </Text>
+              </View>
+            </View>
             <View style={styles.setsRow}>
               <Text style={styles.setsLabel}>Séries</Text>
               <Stepper
@@ -94,9 +100,9 @@ export default function EditSession() {
               />
             </View>
             <Row>
-              <Chip label="Remplacer" onPress={() => replace(index)} />
+              <Chip label="Remplacer" icon="swap-horizontal" onPress={() => replace(index)} />
               {steps.length > 1 && (
-                <Chip label="Retirer" onPress={() => setSteps(steps.filter((_, i) => i !== index))} />
+                <Chip label="Retirer" icon="trash-outline" onPress={() => setSteps(steps.filter((_, i) => i !== index))} />
               )}
             </Row>
           </Card>
@@ -110,6 +116,7 @@ export default function EditSession() {
             <Chip
               key={category}
               label={CATEGORY_LABELS[category]}
+              icon={CategoryIcons[category]}
               selected={addCategory === category}
               onPress={() => setAddCategory(addCategory === category ? null : category)}
             />
@@ -121,7 +128,7 @@ export default function EditSession() {
         {addOptions.map((exercise) => (
           <Pressable key={exercise.id} style={styles.option} onPress={() => add(exercise.id)}>
             <Text style={styles.optionText}>{exercise.name}</Text>
-            <Text style={styles.plus}>+</Text>
+            <Ionicons name="add-circle" size={24} color={Colors.ink} />
           </Pressable>
         ))}
       </Card>
@@ -139,17 +146,17 @@ function Stepper({ label, disabled, onPress }: { label: string; disabled?: boole
       disabled={disabled}
       onPress={onPress}
       style={[styles.stepper, disabled && styles.disabled]}>
-      <Text style={styles.stepperText}>{label}</Text>
+      <Ionicons name={label === '+' ? 'add' : 'remove'} size={20} color={Colors.text} />
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  name: { fontSize: 17, fontWeight: '600', color: Colors.text },
-  meta: { fontSize: 14, color: Colors.textSecondary },
+  name: { fontSize: 17, fontFamily: Fonts.bold, color: Colors.text },
+  meta: { fontSize: 14, fontFamily: Fonts.regular, color: Colors.textSecondary },
   setsRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-  setsLabel: { flex: 1, fontSize: 16, color: Colors.text },
-  sets: { minWidth: 24, textAlign: 'center', fontSize: 18, fontWeight: '600', color: Colors.text },
+  setsLabel: { flex: 1, fontSize: 16, fontFamily: Fonts.regular, color: Colors.text },
+  sets: { minWidth: 24, textAlign: 'center', fontSize: 18, fontFamily: Fonts.bold, color: Colors.text },
   stepper: {
     width: 40,
     height: 40,
@@ -160,7 +167,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: Colors.card,
   },
-  stepperText: { fontSize: 20, color: Colors.text },
+  header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  flex: { flex: 1 },
   disabled: { opacity: 0.35 },
   option: {
     flexDirection: 'row',
@@ -170,6 +178,5 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.border,
   },
-  optionText: { fontSize: 16, color: Colors.text },
-  plus: { fontSize: 22, color: Colors.textSecondary },
+  optionText: { fontSize: 16, fontFamily: Fonts.regular, color: Colors.text },
 });

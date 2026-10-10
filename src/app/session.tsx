@@ -1,13 +1,22 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
-import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Body, Button, Card, Chip, ProgressBar, Row, Screen } from '@/components/ui';
-import { Colors, Radius, Spacing } from '@/constants/theme';
+import {
+  Button,
+  CategoryTile,
+  type IconName,
+  ProgressBar,
+  ProgressRing,
+  Screen,
+} from '@/components/ui';
+import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { getExercise, LEVEL_LABELS } from '@/data/exercises';
 import { confirmAction } from '@/lib/confirm';
+import { impact, success, tap } from '@/lib/haptics';
 import { ACHIEVEMENTS } from '@/lib/stats';
 import type { Exercise, Feeling, Session } from '@/lib/types';
 import { say, stopVoice } from '@/lib/voice';
@@ -16,11 +25,13 @@ import { useAppStore, type LevelChange, type SessionSummary } from '@/store/app-
 
 type Phase = { type: 'work' | 'rest'; stepIndex: number; set: number };
 
-const FEELINGS: { value: Feeling; label: string }[] = [
-  { value: 'facile', label: 'Trop facile' },
-  { value: 'bien', label: 'Juste bien' },
-  { value: 'dur', label: 'Trop dur' },
+const FEELINGS: { value: Feeling; label: string; icon: IconName }[] = [
+  { value: 'facile', label: 'Trop facile', icon: 'happy-outline' },
+  { value: 'bien', label: 'Juste bien', icon: 'thumbs-up-outline' },
+  { value: 'dur', label: 'Trop dur', icon: 'flame-outline' },
 ];
+
+const RING_SIZE = 230;
 
 const PREP_SECONDS = 3;
 const KEEP_AWAKE_TAG = 'aria-session';
@@ -37,23 +48,22 @@ function buildPhases(session: Session): Phase[] {
   return phases;
 }
 
-function haptic() {
-  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-}
-
 /** Compte à rebours ; remonté à chaque phase grâce à sa `key`, il s'arrête pendant la pause. */
 function Countdown({
   seconds,
   paused,
   onDone,
   onTick,
-  style,
+  label,
+  color = Colors.accent,
 }: {
   seconds: number;
   paused: boolean;
   onDone: () => void;
   onTick?: (remaining: number) => void;
-  style?: object;
+  /** Texte sous le chiffre. */
+  label: string;
+  color?: string;
 }) {
   const [remaining, setRemaining] = useState(seconds);
 
@@ -70,7 +80,12 @@ function Countdown({
     return () => clearTimeout(id);
   }, [remaining, paused, onDone, onTick]);
 
-  return <Text style={style ?? styles.timer}>{remaining}</Text>;
+  return (
+    <ProgressRing value={remaining / seconds} size={RING_SIZE} stroke={14} color={color} track={Colors.inkSoft}>
+      <Text style={styles.timer}>{remaining}</Text>
+      <Text style={styles.unit}>{label}</Text>
+    </ProgressRing>
+  );
 }
 
 /** Exercice chronométré : 3-2-1 pour se mettre en place, puis le temps de l'exercice. */
@@ -94,17 +109,17 @@ function TimedWork({
   if (!running) {
     return (
       <View style={styles.timerBlock}>
-        <Text style={styles.prepLabel}>Mets-toi en place</Text>
         <Countdown
           seconds={PREP_SECONDS}
           paused={paused}
           onTick={announceLast}
+          label="mets-toi en place"
+          color={Colors.textOnDarkMuted}
           onDone={() => {
             if (voice) say('Partez');
-            haptic();
+            impact();
             setRunning(true);
           }}
-          style={styles.prepTimer}
         />
       </View>
     );
@@ -112,8 +127,7 @@ function TimedWork({
 
   return (
     <View style={styles.timerBlock}>
-      <Countdown seconds={seconds} paused={paused} onTick={announceLast} onDone={onDone} />
-      <Text style={styles.unit}>secondes</Text>
+      <Countdown seconds={seconds} paused={paused} onTick={announceLast} onDone={onDone} label="secondes" />
     </View>
   );
 }
@@ -124,23 +138,68 @@ function RepsWork({ target, onDone }: { target: number; onDone: (done: number) =
   return (
     <View style={styles.timerBlock}>
       <View style={styles.repsRow}>
-        <Pressable
-          accessibilityLabel="Une répétition de moins"
+        <RoundButton
+          icon="remove"
+          label="Une répétition de moins"
           onPress={() => setDone(Math.max(0, done - 1))}
-          style={styles.repsButton}>
-          <Text style={styles.repsButtonText}>−</Text>
-        </Pressable>
-        <Text style={styles.timer}>{done}</Text>
-        <Pressable
-          accessibilityLabel="Une répétition de plus"
-          onPress={() => setDone(done + 1)}
-          style={styles.repsButton}>
-          <Text style={styles.repsButtonText}>+</Text>
-        </Pressable>
+        />
+        <View style={styles.repsCenter}>
+          <Text style={styles.timer}>{done}</Text>
+          <Text style={styles.unit}>répétitions</Text>
+        </View>
+        <RoundButton icon="add" label="Une répétition de plus" onPress={() => setDone(done + 1)} />
       </View>
-      <Text style={styles.unit}>répétitions</Text>
-      <Button label="C'est fait" onPress={() => onDone(done)} style={styles.fullWidth} />
+      <Button
+        label="C'est fait"
+        icon="checkmark"
+        variant="accent"
+        onPress={() => onDone(done)}
+        style={styles.fullWidth}
+      />
     </View>
+  );
+}
+
+function RoundButton({
+  icon,
+  label,
+  onPress,
+  size = 60,
+  primary,
+  caption,
+}: {
+  icon: IconName;
+  label: string;
+  onPress: () => void;
+  size?: number;
+  primary?: boolean;
+  /** Texte affiché sous le bouton. */
+  caption?: string;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={() => {
+        tap();
+        onPress();
+      }}
+      style={styles.control}>
+      {({ pressed }) => (
+        <>
+          <View
+            style={[
+              styles.round,
+              { width: size, height: size },
+              primary && styles.roundPrimary,
+              pressed && styles.pressed,
+            ]}>
+            <Ionicons name={icon} size={size * 0.42} color={primary ? Colors.ink : Colors.white} />
+          </View>
+          {caption && <Text style={styles.controlLabel}>{caption}</Text>}
+        </>
+      )}
+    </Pressable>
   );
 }
 
@@ -219,71 +278,89 @@ export default function SessionPlayer() {
     const minutes = Math.max(1, Math.round((summary?.durationSeconds ?? 0) / 60));
     const unlocked = ACHIEVEMENTS.filter((a) => summary?.newAchievements.includes(a.id));
     return (
-      <Screen edges={['top', 'bottom']}>
+      <Screen dark edges={['top', 'bottom']}>
+        <StatusBar style="light" />
         <View style={styles.endHeader}>
+          <View style={styles.endBadge}>
+            <Ionicons name="trophy" size={40} color={Colors.ink} />
+          </View>
           <Text style={styles.big}>Bravo !</Text>
-          <Body muted>Séance terminée et enregistrée.</Body>
+          <Text style={styles.endSubtitle}>Séance terminée et enregistrée.</Text>
         </View>
-        <Row>
+        <View style={styles.endStats}>
           <View style={styles.endStat}>
-            <Text style={styles.endValue}>{minutes} min</Text>
-            <Text style={styles.endLabel}>d&apos;effort</Text>
+            <Text style={styles.endValue}>{minutes}</Text>
+            <Text style={styles.endLabel}>minutes d&apos;effort</Text>
           </View>
           <View style={styles.endStat}>
             <Text style={styles.endValue}>
-              {weekDone} / {weekGoal}
+              {weekDone}/{weekGoal}
             </Text>
             <Text style={styles.endLabel}>séances cette semaine</Text>
           </View>
-        </Row>
-        {unlocked.length > 0 && (
-          <Card style={styles.unlocked}>
-            <Text style={styles.sectionTitle}>Succès débloqué{unlocked.length > 1 ? 's' : ''}</Text>
-            {unlocked.map((a) => (
-              <Body key={a.id}>
-                {a.title} · {a.points} pts
-              </Body>
-            ))}
-          </Card>
-        )}
+        </View>
+        {unlocked.map((a) => (
+          <View key={a.id} style={styles.darkCard}>
+            <View style={styles.medal}>
+              <Ionicons name="medal" size={22} color={Colors.ink} />
+            </View>
+            <View style={styles.flex}>
+              <Text style={styles.darkEyebrow}>Succès débloqué</Text>
+              <Text style={styles.darkTitle}>{a.title}</Text>
+            </View>
+            <Text style={styles.points}>+{a.points} pts</Text>
+          </View>
+        ))}
         {!feeling ? (
-          <Card>
-            <Text style={styles.sectionTitle}>Comment tu l&apos;as trouvée ?</Text>
-            <Body muted>J&apos;ajusterai la prochaine séance.</Body>
-            <Row>
+          <View style={styles.feelingBlock}>
+            <Text style={styles.darkTitle}>Comment tu l&apos;as trouvée ?</Text>
+            <Text style={styles.darkMuted}>J&apos;ajusterai la prochaine séance.</Text>
+            <View style={styles.feelings}>
               {FEELINGS.map((item) => (
-                <Chip
+                <Pressable
                   key={item.value}
-                  label={item.label}
+                  accessibilityRole="button"
                   onPress={() => {
+                    tap();
                     setFeeling(item.value);
                     setLevelChange(rateLastSession(item.value));
                   }}
-                />
+                  style={({ pressed }) => [styles.feeling, pressed && styles.feelingPressed]}>
+                  <Ionicons name={item.icon} size={26} color={Colors.white} />
+                  <Text style={styles.feelingLabel}>{item.label}</Text>
+                </Pressable>
               ))}
-            </Row>
-          </Card>
+            </View>
+          </View>
         ) : (
-          <Card>
-            <Text style={styles.sectionTitle}>Merci, c&apos;est noté.</Text>
-            {levelChange ? (
-              <Body>
-                {levelChange.to > levelChange.from
-                  ? `Tu passes au niveau ${LEVEL_LABELS[levelChange.to]} : les prochaines séances proposeront des variantes plus exigeantes.`
-                  : `On repasse au niveau ${LEVEL_LABELS[levelChange.to]} : les prochaines séances seront plus douces.`}
-              </Body>
-            ) : (
-              <Body muted>
-                {feeling === 'facile'
-                  ? 'La prochaine séance sera un peu plus intense.'
-                  : feeling === 'dur'
-                    ? 'La prochaine séance sera un peu plus douce.'
-                    : 'On garde ce rythme.'}
-              </Body>
-            )}
-          </Card>
+          <View style={styles.darkCard}>
+            <Ionicons
+              name={levelChange ? 'trending-up' : 'checkmark-circle'}
+              size={26}
+              color={Colors.accent}
+            />
+            <View style={styles.flex}>
+              <Text style={styles.darkTitle}>Merci, c&apos;est noté.</Text>
+              <Text style={styles.darkMuted}>
+                {levelChange
+                  ? levelChange.to > levelChange.from
+                    ? `Tu passes au niveau ${LEVEL_LABELS[levelChange.to]} : les prochaines séances proposeront des variantes plus exigeantes.`
+                    : `On repasse au niveau ${LEVEL_LABELS[levelChange.to]} : les prochaines séances seront plus douces.`
+                  : feeling === 'facile'
+                    ? 'La prochaine séance sera un peu plus intense.'
+                    : feeling === 'dur'
+                      ? 'La prochaine séance sera un peu plus douce.'
+                      : 'On garde ce rythme.'}
+              </Text>
+            </View>
+          </View>
         )}
-        <Button label="Terminer" variant={feeling ? 'primary' : 'secondary'} onPress={() => router.back()} />
+        <Button
+          label="Terminer"
+          variant={feeling ? 'accent' : 'onDark'}
+          onPress={() => router.back()}
+          style={styles.endButton}
+        />
       </Screen>
     );
   }
@@ -302,7 +379,7 @@ export default function SessionPlayer() {
         setReps((prev) => ({ ...prev, [exercise.id]: (prev[exercise.id] ?? 0) + count }));
       }
     }
-    haptic();
+    impact();
     setPaused(false);
     if (phaseIndex + 1 >= phases.length) {
       // On enregistre dès la fin : le ressenti n'est qu'un complément.
@@ -310,6 +387,7 @@ export default function SessionPlayer() {
         phase.type === 'work' && exercise.mode === 'reps'
           ? { ...reps, [exercise.id]: (reps[exercise.id] ?? 0) + (repsDone ?? amount) }
           : reps;
+      success();
       setSummary(
         recordSession({
           sessionId: session.id,
@@ -344,34 +422,53 @@ export default function SessionPlayer() {
   const timed = phase.type === 'rest' || exercise.mode === 'time';
 
   return (
-    <Screen edges={['top', 'bottom']}>
+    <Screen dark edges={['top', 'bottom']}>
+      <StatusBar style="light" />
       <View style={styles.top}>
-        <Pressable onPress={quit} hitSlop={12}>
-          <Text style={styles.topAction}>Quitter</Text>
-        </Pressable>
+        <RoundButton icon="close" label="Quitter la séance" onPress={quit} size={42} />
         <Text style={styles.counter}>
-          Exercice {phase.stepIndex + 1} sur {session.steps.length}
+          Exercice {phase.stepIndex + 1} / {session.steps.length}
         </Text>
-        <Pressable
+        <RoundButton
+          icon={voice ? 'volume-high' : 'volume-mute'}
+          label={voice ? 'Couper la voix' : 'Activer la voix'}
+          size={42}
           onPress={() => {
             if (voice) stopVoice();
             setVoiceEnabled(!voice);
           }}
-          hitSlop={12}
-          accessibilityLabel={voice ? 'Couper la voix' : 'Activer la voix'}>
-          <Text style={styles.topAction}>{voice ? 'Voix : oui' : 'Voix : non'}</Text>
-        </Pressable>
+        />
       </View>
-      <ProgressBar value={phaseIndex / phases.length} />
+      <ProgressBar
+        value={phaseIndex / phases.length}
+        color={Colors.accent}
+        track={Colors.inkSoft}
+        height={6}
+      />
 
       {phase.type === 'rest' ? (
         <View style={styles.center}>
           <Text style={styles.label}>Repos</Text>
+          <Text style={styles.exerciseName}>Respire</Text>
           <View style={styles.timerBlock}>
-            <Countdown key={phaseIndex} seconds={step.restSeconds} paused={paused} onDone={next} />
-            <Text style={styles.unit}>secondes</Text>
+            <Countdown
+              key={phaseIndex}
+              seconds={step.restSeconds}
+              paused={paused}
+              onDone={next}
+              label="secondes"
+              color={Colors.white}
+            />
           </View>
-          {nextExercise && <Body muted>Ensuite : {nextExercise.name}</Body>}
+          {nextExercise && (
+            <View style={[styles.darkCard, styles.stretch]}>
+              <CategoryTile category={nextExercise.category} size={42} />
+              <View style={styles.flex}>
+                <Text style={styles.darkEyebrow}>Ensuite</Text>
+                <Text style={styles.darkTitle}>{nextExercise.name}</Text>
+              </View>
+            </View>
+          )}
         </View>
       ) : (
         <View style={styles.center}>
@@ -394,34 +491,46 @@ export default function SessionPlayer() {
       )}
 
       {timed && (
-        <Row style={styles.controls}>
-          <Button
+        <View style={styles.controls}>
+          <RoundButton
+            icon={paused ? 'play' : 'pause'}
             label={paused ? 'Reprendre' : 'Pause'}
-            variant="secondary"
+            caption={paused ? 'Reprendre' : 'Pause'}
             onPress={() => setPaused(!paused)}
-            style={styles.flex}
+            size={72}
+            primary
           />
-          <Button
+          <RoundButton
+            icon="play-skip-forward"
             label={phase.type === 'rest' ? 'Passer le repos' : 'Terminer'}
-            variant="secondary"
+            caption={phase.type === 'rest' ? 'Passer le repos' : 'Terminer'}
             onPress={() => next()}
-            style={styles.flex}
+            size={72}
           />
-        </Row>
+        </View>
       )}
 
       {phase.type === 'work' && (
         <>
-          <Card>
+          <View style={styles.instructions}>
             {exercise.instructions.map((line, index) => (
-              <Body key={index}>
-                {index + 1}. {line}
-              </Body>
+              <View key={index} style={styles.instructionRow}>
+                <View style={styles.instructionNumber}>
+                  <Text style={styles.instructionNumberText}>{index + 1}</Text>
+                </View>
+                <Text style={styles.instructionText}>{line}</Text>
+              </View>
             ))}
-            <Body muted>Pourquoi : {exercise.why}</Body>
-          </Card>
+            <Text style={styles.darkMuted}>Pourquoi : {exercise.why}</Text>
+          </View>
           {exercise.easierId && (
-            <Button label="Trop dur ou douloureux ? Version plus douce" variant="ghost" onPress={makeEasier} />
+            <Button
+              label="Trop dur ou douloureux ? Version plus douce"
+              icon="trending-down"
+              variant="onDark"
+              size="sm"
+              onPress={makeEasier}
+            />
           )}
         </>
       )}
@@ -430,42 +539,112 @@ export default function SessionPlayer() {
 }
 
 const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  stretch: { alignSelf: 'stretch' },
+  pressed: { opacity: 0.8, transform: [{ scale: 0.96 }] },
   top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  topAction: { fontSize: 15, color: Colors.textSecondary, fontWeight: '500' },
-  counter: { fontSize: 15, color: Colors.text, fontWeight: '600' },
-  center: { alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.md },
-  label: { fontSize: 14, fontWeight: '600', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 1 },
-  exerciseName: { fontSize: 28, fontWeight: '700', color: Colors.text, textAlign: 'center' },
-  timerBlock: { alignItems: 'center', gap: Spacing.xs, alignSelf: 'stretch' },
-  timer: { fontSize: 72, fontWeight: '300', color: Colors.text, fontVariant: ['tabular-nums'] },
-  unit: { fontSize: 14, color: Colors.textSecondary },
-  prepLabel: { fontSize: 16, color: Colors.textSecondary },
-  prepTimer: { fontSize: 72, fontWeight: '300', color: Colors.textSecondary, fontVariant: ['tabular-nums'] },
-  repsRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.lg },
-  repsButton: {
-    width: 52,
-    height: 52,
+  counter: { fontSize: 15, fontFamily: Fonts.bold, color: Colors.white },
+  center: { alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.sm },
+  label: {
+    fontSize: 13,
+    fontFamily: Fonts.bold,
+    color: Colors.accent,
+    textTransform: 'uppercase',
+    letterSpacing: 1.4,
+  },
+  exerciseName: {
+    fontSize: 30,
+    lineHeight: 36,
+    fontFamily: Fonts.extrabold,
+    color: Colors.white,
+    textAlign: 'center',
+    letterSpacing: -0.6,
+    marginBottom: Spacing.sm,
+  },
+  timerBlock: { alignItems: 'center', gap: Spacing.md, alignSelf: 'stretch' },
+  timer: { fontSize: 72, lineHeight: 80, fontFamily: Fonts.extrabold, color: Colors.white, fontVariant: ['tabular-nums'] },
+  unit: { fontSize: 14, fontFamily: Fonts.medium, color: Colors.textOnDarkMuted },
+  repsRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.lg, paddingVertical: Spacing.lg },
+  repsCenter: { alignItems: 'center', minWidth: 120 },
+  round: {
     borderRadius: Radius.pill,
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.inkSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  repsButtonText: { fontSize: 28, color: Colors.text },
-  fullWidth: { alignSelf: 'stretch', marginTop: Spacing.sm },
-  controls: { flexWrap: 'nowrap' },
-  flex: { flex: 1 },
-  endHeader: { alignItems: 'center', gap: Spacing.xs, paddingVertical: Spacing.lg },
-  big: { fontSize: 36, fontWeight: '700', color: Colors.text },
-  endStat: {
-    flex: 1,
-    backgroundColor: Colors.card,
+  roundPrimary: { backgroundColor: Colors.accent },
+  fullWidth: { alignSelf: 'stretch' },
+  controls: { flexDirection: 'row', justifyContent: 'center', gap: Spacing.xl },
+  control: { alignItems: 'center', gap: 6 },
+  controlLabel: { fontSize: 13, fontFamily: Fonts.semibold, color: Colors.textOnDarkMuted },
+  instructions: { backgroundColor: Colors.inkSoft, borderRadius: Radius.lg, padding: Spacing.md, gap: Spacing.sm + 2 },
+  instructionRow: { flexDirection: 'row', gap: Spacing.sm + 2, alignItems: 'flex-start' },
+  instructionNumber: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  instructionNumberText: { fontSize: 13, fontFamily: Fonts.extrabold, color: Colors.ink },
+  instructionText: { flex: 1, fontSize: 15, lineHeight: 22, fontFamily: Fonts.regular, color: Colors.white },
+  darkCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    backgroundColor: Colors.inkSoft,
     borderRadius: Radius.lg,
     padding: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
   },
-  endValue: { fontSize: 24, fontWeight: '600', color: Colors.text, fontVariant: ['tabular-nums'] },
-  endLabel: { fontSize: 14, color: Colors.textSecondary },
-  unlocked: { borderColor: Colors.accent },
-  sectionTitle: { fontSize: 17, fontWeight: '600', color: Colors.text },
+  darkEyebrow: {
+    fontSize: 12,
+    fontFamily: Fonts.bold,
+    color: Colors.textOnDarkMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  darkTitle: { fontSize: 17, lineHeight: 23, fontFamily: Fonts.bold, color: Colors.white },
+  darkMuted: { fontSize: 14, lineHeight: 20, fontFamily: Fonts.regular, color: Colors.textOnDarkMuted },
+  endHeader: { alignItems: 'center', gap: Spacing.sm, paddingTop: Spacing.xl, paddingBottom: Spacing.md },
+  endBadge: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: Colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.sm,
+  },
+  big: { fontSize: 40, lineHeight: 46, fontFamily: Fonts.extrabold, color: Colors.white, letterSpacing: -1 },
+  endSubtitle: { fontSize: 16, fontFamily: Fonts.regular, color: Colors.textOnDarkMuted },
+  endStats: { flexDirection: 'row', gap: Spacing.sm + 2 },
+  endStat: { flex: 1, backgroundColor: Colors.inkSoft, borderRadius: Radius.lg, padding: Spacing.md, gap: 2 },
+  endValue: { fontSize: 32, lineHeight: 38, fontFamily: Fonts.extrabold, color: Colors.accent, fontVariant: ['tabular-nums'] },
+  endLabel: { fontSize: 13, fontFamily: Fonts.medium, color: Colors.textOnDarkMuted },
+  medal: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: Colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  points: { fontSize: 15, fontFamily: Fonts.extrabold, color: Colors.accent },
+  feelingBlock: { gap: Spacing.xs, marginTop: Spacing.sm },
+  feelings: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.sm },
+  feeling: {
+    flex: 1,
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Colors.inkSoft,
+    borderRadius: Radius.lg,
+    paddingVertical: Spacing.md + 2,
+    borderWidth: 1,
+    borderColor: Colors.borderOnDark,
+  },
+  feelingPressed: { backgroundColor: Colors.borderOnDark },
+  feelingLabel: { fontSize: 14, fontFamily: Fonts.semibold, color: Colors.white },
+  endButton: { marginTop: Spacing.sm },
 });

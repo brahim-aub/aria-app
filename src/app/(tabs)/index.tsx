@@ -1,9 +1,25 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Body, Button, Card, Chip, Row, Screen, Title } from '@/components/ui';
-import { Colors, Radius, Spacing } from '@/constants/theme';
+import {
+  Badge,
+  Body,
+  Button,
+  Card,
+  CategoryTile,
+  Chip,
+  Eyebrow,
+  Heading,
+  IconTile,
+  ProgressRing,
+  Row,
+  Screen,
+  SectionHeader,
+  Title,
+} from '@/components/ui';
+import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { getExercise, ZONE_LABELS } from '@/data/exercises';
 import { estimateSeconds } from '@/lib/program';
 import type { Zone } from '@/lib/types';
@@ -36,7 +52,9 @@ export default function Home() {
 
   if (!profile || !session) return null;
 
-  const today = new Date().getDay();
+  const now = new Date();
+  const today = now.getDay();
+  const dateLabel = now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
   const weekGoal = profile.trainingDays.length;
   const weekDone = sessionsInWeek(history).length;
   const streak = weekStreak(history, weekGoal);
@@ -58,100 +76,146 @@ export default function Home() {
 
   return (
     <Screen>
-      <Title>Salut {profile.firstName} !</Title>
+      <View style={styles.header}>
+        <View style={styles.flex}>
+          <Eyebrow>{dateLabel}</Eyebrow>
+          <Title>Salut {profile.firstName}</Title>
+        </View>
+        <Link href="/profile" asChild>
+          <Pressable style={styles.avatar} accessibilityLabel="Mon profil">
+            <Text style={styles.avatarText}>{profile.firstName.charAt(0).toUpperCase()}</Text>
+          </Pressable>
+        </Link>
+      </View>
 
       <Card>
+        <View style={styles.weekTop}>
+          <ProgressRing value={weekGoal ? weekDone / weekGoal : 0} size={60} stroke={7}>
+            <Text style={styles.ringText}>
+              {weekDone}/{weekGoal}
+            </Text>
+          </ProgressRing>
+          <View style={styles.flex}>
+            <Text style={styles.weekTitle}>
+              {history.length === 0
+                ? 'Ta semaine commence'
+                : weekDone >= weekGoal
+                  ? 'Objectif de la semaine atteint'
+                  : `Encore ${weekGoal - weekDone} séance${weekGoal - weekDone > 1 ? 's' : ''} cette semaine`}
+            </Text>
+            <Body muted style={styles.small}>
+              {history.length === 0
+                ? `Première séance : environ ${estimatedMinutes} min, à ton rythme.`
+                : `${weekDone} sur ${weekGoal} séances prévues`}
+            </Body>
+          </View>
+          {streak > 0 && <Badge tone="accent" icon="flame" label={`${streak} sem.`} />}
+        </View>
         <View style={styles.week}>
           {WEEK_ORDER.map((day) => {
             const planned = profile.trainingDays.includes(day);
             const done = doneDays.has(day);
+            const isToday = day === today;
             return (
               <View key={day} style={styles.day}>
-                <Text style={[styles.dayLabel, day === today && styles.dayToday]}>{DAY_SHORT[day]}</Text>
+                <Text style={[styles.dayLabel, isToday && styles.dayLabelToday]}>{DAY_SHORT[day]}</Text>
                 <View
-                  style={[styles.dot, planned && styles.dotPlanned, done && styles.dotDone]}
-                  accessibilityLabel={done ? 'séance faite' : planned ? 'séance prévue' : 'repos'}
-                />
+                  style={[
+                    styles.dayCircle,
+                    planned && styles.dayPlanned,
+                    isToday && styles.dayToday,
+                    done && styles.dayDone,
+                  ]}
+                  accessibilityLabel={done ? 'séance faite' : planned ? 'séance prévue' : 'repos'}>
+                  {done ? (
+                    <Ionicons name="checkmark" size={16} color={Colors.ink} />
+                  ) : planned ? (
+                    <View style={[styles.plannedDot, isToday && styles.plannedDotToday]} />
+                  ) : null}
+                </View>
               </View>
             );
           })}
         </View>
-        {history.length === 0 ? (
-          <Body muted>
-            Ta première séance t&apos;attend : environ {estimatedMinutes} minutes, à ton rythme.
-          </Body>
-        ) : (
-          <Body muted>
-            {weekDone} séance{weekDone > 1 ? 's' : ''} sur {weekGoal} cette semaine
-            {streak > 0 && ` · série de ${streak} semaine${streak > 1 ? 's' : ''} réussie${streak > 1 ? 's' : ''}`}
-          </Body>
-        )}
       </Card>
 
       {!showSession && (
         <Card>
-          <Text style={styles.cardTitle}>
-            {status === 'done' ? 'Séance du jour faite, bravo.' : 'Aujourd\'hui, c\'est repos.'}
-          </Text>
+          <View style={styles.restRow}>
+            <IconTile
+              icon={status === 'done' ? 'checkmark-done' : 'moon'}
+              tint={status === 'done' ? Colors.accentSoft : Colors.surface}
+              color={status === 'done' ? Colors.accentDeep : Colors.text}
+            />
+            <View style={styles.flex}>
+              <Heading>{status === 'done' ? 'Séance faite, bravo !' : 'Jour de repos'}</Heading>
+              {nextDay && <Body muted style={styles.small}>Prochaine séance : {nextDay}</Body>}
+            </View>
+          </View>
           <Body muted>
             {status === 'done'
               ? 'Le repos fait partie du programme : tes muscles se renforcent pendant la récupération.'
               : 'Récupérer est aussi important que s\'entraîner.'}
-            {nextDay && ` Prochaine séance : ${nextDay}.`}
           </Body>
-          <Button label="M'entraîner quand même" variant="secondary" onPress={() => setTrainAnyway(true)} />
+          <Button
+            label="M'entraîner quand même"
+            icon="flash"
+            variant="secondary"
+            onPress={() => setTrainAnyway(true)}
+          />
         </Card>
       )}
 
       {showSession && (
-      <Card>
-        <Text style={styles.cardTitle}>{session.title}</Text>
-        <Body muted>
-          Environ {estimatedMinutes} min · {session.steps.length} exercices
-          {session.avoidedZones.length > 0 &&
-            ` · ménage : ${session.avoidedZones.map((z) => ZONE_LABELS[z].toLowerCase()).join(', ')}`}
-        </Body>
-        <View style={styles.list}>
-          {session.steps.map((step, index) => {
-            const exercise = getExercise(step.exerciseId);
-            if (!exercise) return null;
-            const amount = exercise.mode === 'time' ? `${step.amount} s` : `${step.amount} rép.`;
-            return (
-              <Link
-                key={`${step.exerciseId}-${index}`}
-                href={{ pathname: '/exercise/[id]', params: { id: exercise.id } }}
-                asChild>
-                <Pressable style={styles.listRow}>
-                  <Text style={styles.listItem}>
-                    {exercise.name} <Text style={styles.listMeta}>· {step.sets} × {amount}</Text>
-                  </Text>
-                  <Text style={styles.chevron}>›</Text>
-                </Pressable>
-              </Link>
-            );
-          })}
-        </View>
-        <Button label="Commencer la séance" onPress={() => router.push('/session')} />
-        <Row style={styles.actions}>
+        <Card variant="dark" style={styles.hero}>
+          <Text style={styles.heroEyebrow}>
+            {session.title === 'Séance du jour' ? 'Aujourd\'hui' : session.title}
+          </Text>
+          <Text style={styles.heroTitle}>
+            {history.length === 0 ? 'Ta première séance' : 'Ta séance du jour'}
+          </Text>
+          <Row>
+            <Badge tone="dark" icon="time-outline" label={`${estimatedMinutes} min`} />
+            <Badge tone="dark" icon="list-outline" label={`${session.steps.length} exercices`} />
+            {session.avoidedZones.length > 0 && (
+              <Badge
+                tone="dark"
+                icon="shield-checkmark-outline"
+                label={`Ménage ${session.avoidedZones.map((z) => ZONE_LABELS[z].toLowerCase()).join(', ')}`}
+              />
+            )}
+          </Row>
           <Button
-            label={adjusting ? 'Annuler' : 'Adapter'}
-            variant="secondary"
-            onPress={() => setAdjusting(!adjusting)}
-            style={styles.flex}
+            label="Commencer"
+            icon="play"
+            variant="accent"
+            onPress={() => router.push('/session')}
+            style={styles.heroButton}
           />
-          <Button
-            label="Modifier"
-            variant="secondary"
-            onPress={() => router.push('/edit-session')}
-            style={styles.flex}
-          />
-        </Row>
-      </Card>
+          <Row style={styles.nowrap}>
+            <Button
+              label={adjusting ? 'Fermer' : 'Adapter'}
+              icon={adjusting ? 'close' : 'options-outline'}
+              variant="onDark"
+              size="sm"
+              onPress={() => setAdjusting(!adjusting)}
+              style={styles.flex}
+            />
+            <Button
+              label="Modifier"
+              icon="create-outline"
+              variant="onDark"
+              size="sm"
+              onPress={() => router.push('/edit-session')}
+              style={styles.flex}
+            />
+          </Row>
+        </Card>
       )}
 
       {showSession && adjusting && (
         <Card>
-          <Text style={styles.cardTitle}>Combien de temps aujourd&apos;hui ?</Text>
+          <Heading>Combien de temps aujourd&apos;hui ?</Heading>
           <Row>
             {TIME_OPTIONS.map((value) => (
               <Chip
@@ -162,7 +226,7 @@ export default function Home() {
               />
             ))}
           </Row>
-          <Text style={styles.cardTitle}>Une douleur aujourd&apos;hui ?</Text>
+          <Heading>Une douleur aujourd&apos;hui ?</Heading>
           <Row>
             {ZONES.map((zone) => (
               <Chip
@@ -175,20 +239,50 @@ export default function Home() {
               />
             ))}
           </Row>
-          <Body muted>
+          <Body muted style={styles.small}>
             Si une douleur est forte ou dure plusieurs jours, demande l&apos;avis d&apos;un médecin
             ou d&apos;un kiné.
           </Body>
-          <Button label="Générer ma séance adaptée" onPress={applyAdjustments} />
+          <Button label="Générer ma séance adaptée" icon="sparkles" onPress={applyAdjustments} />
         </Card>
+      )}
+
+      {showSession && (
+        <>
+          <SectionHeader title="Au programme" />
+          <Card style={styles.list}>
+            {session.steps.map((step, index) => {
+              const exercise = getExercise(step.exerciseId);
+              if (!exercise) return null;
+              const amount = exercise.mode === 'time' ? `${step.amount} s` : `${step.amount} rép.`;
+              return (
+                <Link
+                  key={`${step.exerciseId}-${index}`}
+                  href={{ pathname: '/exercise/[id]', params: { id: exercise.id } }}
+                  asChild>
+                  <Pressable style={styles.listRow}>
+                    <CategoryTile category={exercise.category} size={42} />
+                    <View style={styles.flex}>
+                      <Text style={styles.listName}>{exercise.name}</Text>
+                      <Text style={styles.listMeta}>
+                        {step.sets} × {amount}
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} />
+                  </Pressable>
+                </Link>
+              );
+            })}
+          </Card>
+        </>
       )}
 
       {isGuest && (
         <View style={styles.banner}>
-          <Body style={styles.bannerText}>
-            Tu utilises Aria sans compte : ta progression est gardée sur ce téléphone uniquement.
-            La création de compte arrive bientôt pour ne rien perdre.
-          </Body>
+          <Ionicons name="phone-portrait-outline" size={18} color={Colors.textSecondary} />
+          <Text style={styles.bannerText}>
+            Sans compte, ta progression reste sur ce téléphone. Les comptes arrivent bientôt.
+          </Text>
         </View>
       )}
     </Screen>
@@ -196,21 +290,60 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
-  week: { flexDirection: 'row', justifyContent: 'space-between' },
-  day: { alignItems: 'center', gap: 6 },
-  dayLabel: { fontSize: 13, color: Colors.textSecondary },
-  dayToday: { color: Colors.text, fontWeight: '700' },
-  dot: { width: 12, height: 12, borderRadius: Radius.pill, backgroundColor: Colors.surface },
-  dotPlanned: { borderWidth: 1.5, borderColor: Colors.text, backgroundColor: Colors.card },
-  dotDone: { backgroundColor: Colors.accent, borderColor: Colors.accent },
-  listRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm },
-  chevron: { fontSize: 20, color: Colors.textSecondary },
-  actions: { flexWrap: 'nowrap' },
   flex: { flex: 1 },
-  cardTitle: { fontSize: 19, fontWeight: '600', color: Colors.text },
-  list: { gap: 6, marginVertical: Spacing.sm },
-  listItem: { flexShrink: 1, fontSize: 16, color: Colors.text, fontWeight: '600' },
-  listMeta: { color: Colors.textSecondary, fontWeight: '400' },
-  banner: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.md },
-  bannerText: { fontSize: 14, color: Colors.textSecondary },
+  nowrap: { flexWrap: 'nowrap' },
+  small: { fontSize: 14, lineHeight: 20 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginTop: Spacing.sm },
+  avatar: {
+    width: 46,
+    height: 46,
+    borderRadius: Radius.pill,
+    backgroundColor: Colors.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: { fontFamily: Fonts.extrabold, fontSize: 18, color: Colors.accent },
+  weekTop: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  ringText: { fontFamily: Fonts.extrabold, fontSize: 15, color: Colors.text },
+  weekTitle: { fontFamily: Fonts.bold, fontSize: 16, lineHeight: 21, color: Colors.text },
+  week: { flexDirection: 'row', justifyContent: 'space-between', marginTop: Spacing.sm },
+  day: { alignItems: 'center', gap: 6 },
+  dayLabel: { fontFamily: Fonts.medium, fontSize: 12, color: Colors.textSecondary },
+  dayLabelToday: { fontFamily: Fonts.extrabold, color: Colors.text },
+  dayCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: Radius.pill,
+    backgroundColor: Colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayPlanned: { borderWidth: 1.5, borderColor: Colors.border, backgroundColor: Colors.card },
+  dayToday: { borderWidth: 2, borderColor: Colors.ink },
+  dayDone: { backgroundColor: Colors.accent, borderColor: Colors.accent },
+  plannedDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.textSecondary },
+  plannedDotToday: { backgroundColor: Colors.ink },
+  restRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  hero: { padding: Spacing.lg, gap: Spacing.md },
+  heroEyebrow: {
+    fontFamily: Fonts.bold,
+    fontSize: 12,
+    color: Colors.accent,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
+  heroTitle: { fontFamily: Fonts.extrabold, fontSize: 28, lineHeight: 33, color: Colors.white, letterSpacing: -0.6 },
+  heroButton: { marginTop: Spacing.xs },
+  list: { paddingVertical: Spacing.sm, gap: 0 },
+  listRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingVertical: 10 },
+  listName: { fontFamily: Fonts.semibold, fontSize: 16, color: Colors.text },
+  listMeta: { fontFamily: Fonts.regular, fontSize: 14, color: Colors.textSecondary, marginTop: 1 },
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  bannerText: { flex: 1, fontFamily: Fonts.regular, fontSize: 13, lineHeight: 18, color: Colors.textSecondary },
 });

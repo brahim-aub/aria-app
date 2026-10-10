@@ -1,14 +1,50 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Link, useRouter } from 'expo-router';
-import { StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Body, Button, Card, Chip, Row, Screen, Title } from '@/components/ui';
-import { Colors } from '@/constants/theme';
+import {
+  Badge,
+  Body,
+  Button,
+  Card,
+  Chip,
+  Heading,
+  IconTile,
+  type IconName,
+  Row,
+  Screen,
+} from '@/components/ui';
+import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { LEVEL_LABELS, ZONE_LABELS } from '@/data/exercises';
 import { confirmAction } from '@/lib/confirm';
 import { GOAL_LABELS } from '@/lib/labels';
 import { computeNutrition } from '@/lib/nutrition';
-import { DAY_NAMES, WEEK_ORDER } from '@/lib/week';
+import { DAY_SHORT, WEEK_ORDER } from '@/lib/week';
 import { useAppStore } from '@/store/app-store';
+
+function InfoRow({ icon, label, value }: { icon: IconName; label: string; value: string }) {
+  return (
+    <View style={styles.infoRow}>
+      <IconTile icon={icon} size={36} />
+      <Text style={styles.infoLabel}>{label}</Text>
+      <Text style={styles.infoValue} numberOfLines={2}>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+function LinkRow({ href, icon, label }: { href: '/privacy' | '/feedback'; icon: IconName; label: string }) {
+  return (
+    <Link href={href} asChild>
+      <Pressable style={styles.infoRow}>
+        <IconTile icon={icon} size={36} />
+        <Text style={[styles.infoLabel, styles.flex]}>{label}</Text>
+        <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} />
+      </Pressable>
+    </Link>
+  );
+}
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -24,13 +60,21 @@ export default function ProfileScreen() {
 
   const nutrition = computeNutrition(profile);
   const days = WEEK_ORDER.filter((day) => profile.trainingDays.includes(day))
-    .map((day) => DAY_NAMES[day])
+    .map((day) => DAY_SHORT[day])
     .join(', ');
   const measurements = [
     profile.age !== null && `${profile.age} ans`,
     profile.heightCm !== null && `${profile.heightCm} cm`,
     profile.weightKg !== null && `${profile.weightKg} kg`,
   ].filter(Boolean);
+
+  const macros = nutrition
+    ? [
+        { label: 'Protéines', grams: nutrition.proteinG, kcal: nutrition.proteinG * 4, color: '#5B45E0' },
+        { label: 'Lipides', grams: nutrition.fatG, kcal: nutrition.fatG * 9, color: '#D9561C' },
+        { label: 'Glucides', grams: nutrition.carbsG, kcal: nutrition.carbsG * 4, color: '#2468D8' },
+      ]
+    : [];
 
   const confirmReset = () =>
     confirmAction(
@@ -45,41 +89,67 @@ export default function ProfileScreen() {
 
   return (
     <Screen>
-      <Title>{profile.firstName}</Title>
+      <View style={styles.header}>
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>{profile.firstName.charAt(0).toUpperCase()}</Text>
+        </View>
+        <View style={styles.flex}>
+          <Text style={styles.name}>{profile.firstName}</Text>
+          <Body muted style={styles.small}>
+            {GOAL_LABELS[profile.goal]}
+            {measurements.length > 0 ? ` · ${measurements.join(' · ')}` : ''}
+          </Body>
+        </View>
+        <Badge tone="accent" icon="trending-up" label={LEVEL_LABELS[profile.level]} />
+      </View>
 
       <Card>
-        <Text style={styles.section}>Mon profil</Text>
-        <Body>Objectif : {GOAL_LABELS[profile.goal]}</Body>
-        <Body>Niveau des exercices : {LEVEL_LABELS[profile.level]}</Body>
-        {measurements.length > 0 && <Body>{measurements.join(' · ')}</Body>}
-        <Body>
-          {profile.minutesPerSession} min, le {days || 'jour de ton choix'}
-        </Body>
-        <Body>
-          Zones à ménager :{' '}
-          {profile.painZones.length ? profile.painZones.map((z) => ZONE_LABELS[z]).join(', ') : 'aucune'}
-        </Body>
-        <Body>
-          Rappels : {profile.reminderEnabled ? `oui, à ${profile.reminderHour} h` : 'non'}
-        </Body>
-        <Button label="Modifier mon profil" variant="secondary" onPress={() => router.push('/edit-profile')} />
+        <Heading>Mon programme</Heading>
+        <InfoRow icon="calendar-outline" label="Jours" value={days || 'à choisir'} />
+        <InfoRow icon="time-outline" label="Durée" value={`${profile.minutesPerSession} min`} />
+        <InfoRow
+          icon="shield-checkmark-outline"
+          label="À ménager"
+          value={profile.painZones.length ? profile.painZones.map((z) => ZONE_LABELS[z]).join(', ') : 'Aucune zone'}
+        />
+        <InfoRow
+          icon="notifications-outline"
+          label="Rappels"
+          value={profile.reminderEnabled ? `${profile.reminderHour} h` : 'Désactivés'}
+        />
+        <Button
+          label="Modifier mon profil"
+          icon="create-outline"
+          variant="secondary"
+          onPress={() => router.push('/edit-profile')}
+        />
       </Card>
 
       <Card>
-        <Text style={styles.section}>Mes besoins caloriques</Text>
+        <Heading>Mes besoins caloriques</Heading>
         {nutrition ? (
           <>
-            <Body>
-              Pour ton objectif : <Text style={styles.highlight}>{nutrition.target} kcal par jour</Text>
-            </Body>
-            <Body muted>Maintien de ton poids : {nutrition.maintenance} kcal</Body>
-            <Body>
-              Protéines {nutrition.proteinG} g · Lipides {nutrition.fatG} g · Glucides{' '}
-              {nutrition.carbsG} g
-            </Body>
-            <Body muted>
-              Estimation à partir de ton âge, ta taille, ton poids et ton activité. Ce n&apos;est pas
-              un avis médical.
+            <View style={styles.kcalRow}>
+              <Text style={styles.kcal}>{nutrition.target.toLocaleString('fr-FR')}</Text>
+              <Text style={styles.kcalUnit}>kcal par jour</Text>
+            </View>
+            <View style={styles.macroBar}>
+              {macros.map((macro) => (
+                <View key={macro.label} style={{ flex: macro.kcal, backgroundColor: macro.color }} />
+              ))}
+            </View>
+            <View style={styles.macros}>
+              {macros.map((macro) => (
+                <View key={macro.label} style={styles.macro}>
+                  <View style={[styles.macroDot, { backgroundColor: macro.color }]} />
+                  <Text style={styles.macroValue}>{macro.grams} g</Text>
+                  <Text style={styles.macroLabel}>{macro.label}</Text>
+                </View>
+              ))}
+            </View>
+            <Body muted style={styles.small}>
+              Maintien de ton poids : {nutrition.maintenance} kcal. Estimation à partir de ton âge, ta
+              taille, ton poids et ton activité ; ce n&apos;est pas un avis médical.
             </Body>
           </>
         ) : (
@@ -88,48 +158,92 @@ export default function ProfileScreen() {
               Renseigne ton âge, ton sexe, ta taille et ton poids pour obtenir une estimation. Ces
               infos sont facultatives et restent sur ton téléphone.
             </Body>
-            <Button label="Compléter" variant="secondary" onPress={() => router.push('/edit-profile')} />
+            <Button
+              label="Compléter"
+              icon="add"
+              variant="secondary"
+              onPress={() => router.push('/edit-profile')}
+            />
           </>
         )}
       </Card>
 
       <Card>
-        <Text style={styles.section}>Séance guidée</Text>
-        <Body muted>Le coach annonce les exercices et le décompte à voix haute.</Body>
+        <Heading>Séance guidée</Heading>
+        <Body muted style={styles.small}>
+          Le coach annonce les exercices et le décompte à voix haute.
+        </Body>
         <Row>
-          <Chip label="Voix activée" selected={voiceEnabled} onPress={() => setVoiceEnabled(true)} />
-          <Chip label="Sans voix" selected={!voiceEnabled} onPress={() => setVoiceEnabled(false)} />
+          <Chip
+            label="Voix activée"
+            icon="volume-high"
+            selected={voiceEnabled}
+            onPress={() => setVoiceEnabled(true)}
+          />
+          <Chip
+            label="Sans voix"
+            icon="volume-mute"
+            selected={!voiceEnabled}
+            onPress={() => setVoiceEnabled(false)}
+          />
         </Row>
       </Card>
 
       <Card>
-        <Text style={styles.section}>Mes données</Text>
-        <Body>
-          Tu utilises Aria sans compte : tout est gardé sur ce téléphone. La création de compte
-          arrivera pour sauvegarder ta progression et débloquer les succès.
+        <Heading>Mes données</Heading>
+        <Body muted style={styles.small}>
+          Tu utilises Aria sans compte : tout est gardé sur ce téléphone. Les comptes arriveront
+          pour sauvegarder ta progression et débloquer les succès.
         </Body>
-        {testMode && <Body muted>Mode test actif : toutes les fonctionnalités sont débloquées.</Body>}
-        <Body muted>Statistiques d&apos;usage anonymes pour améliorer l&apos;appli :</Body>
+        {testMode && <Badge icon="flask" label="Mode test : tout est débloqué" />}
+        <Text style={styles.subLabel}>Statistiques d&apos;usage anonymes</Text>
         <Row>
           <Chip label="J'accepte" selected={consent.analytics} onPress={() => setConsent({ analytics: true })} />
           <Chip label="Non merci" selected={!consent.analytics} onPress={() => setConsent({ analytics: false })} />
         </Row>
-        <Link href="/privacy" style={styles.link}>
-          Politique de confidentialité ›
-        </Link>
-        <Link href="/feedback" style={styles.link}>
-          Donner mon avis ›
-        </Link>
+        <View style={styles.links}>
+          <LinkRow href="/privacy" icon="document-text-outline" label="Politique de confidentialité" />
+          <LinkRow href="/feedback" icon="chatbox-ellipses-outline" label="Donner mon avis" />
+        </View>
       </Card>
 
-      <Button label="Refaire l'onboarding" variant="secondary" onPress={() => router.push('/onboarding')} />
-      <Button label="Tout effacer" variant="ghost" onPress={confirmReset} />
+      <Button
+        label="Refaire l'onboarding"
+        icon="refresh"
+        variant="secondary"
+        onPress={() => router.push('/onboarding')}
+      />
+      <Button label="Tout effacer" icon="trash-outline" variant="ghost" onPress={confirmReset} />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  section: { fontSize: 18, fontWeight: '600', color: Colors.text },
-  highlight: { fontWeight: '700', color: Colors.text },
-  link: { fontSize: 16, fontWeight: '600', color: Colors.text, paddingVertical: 4 },
+  flex: { flex: 1 },
+  small: { fontSize: 14, lineHeight: 20 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginTop: Spacing.sm },
+  avatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: Colors.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: { fontSize: 26, fontFamily: Fonts.extrabold, color: Colors.accent },
+  name: { fontSize: 26, lineHeight: 32, fontFamily: Fonts.extrabold, color: Colors.text, letterSpacing: -0.6 },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingVertical: 2 },
+  infoLabel: { fontSize: 15, fontFamily: Fonts.semibold, color: Colors.text },
+  infoValue: { flex: 1, textAlign: 'right', fontSize: 15, fontFamily: Fonts.regular, color: Colors.textSecondary },
+  kcalRow: { flexDirection: 'row', alignItems: 'baseline', gap: Spacing.sm },
+  kcal: { fontSize: 38, lineHeight: 44, fontFamily: Fonts.extrabold, color: Colors.text, letterSpacing: -1 },
+  kcalUnit: { fontSize: 15, fontFamily: Fonts.medium, color: Colors.textSecondary },
+  macroBar: { flexDirection: 'row', height: 10, borderRadius: Radius.pill, overflow: 'hidden', gap: 3 },
+  macros: { flexDirection: 'row', justifyContent: 'space-between' },
+  macro: { gap: 2 },
+  macroDot: { width: 8, height: 8, borderRadius: 4, marginBottom: 2 },
+  macroValue: { fontSize: 17, fontFamily: Fonts.bold, color: Colors.text },
+  macroLabel: { fontSize: 13, fontFamily: Fonts.regular, color: Colors.textSecondary },
+  subLabel: { fontSize: 14, fontFamily: Fonts.semibold, color: Colors.text },
+  links: { gap: Spacing.sm, marginTop: Spacing.xs },
 });

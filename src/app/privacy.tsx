@@ -1,7 +1,7 @@
 import { StyleSheet, Text } from 'react-native';
 
 import { Body, Card, Screen } from '@/components/ui';
-import { Colors } from '@/constants/theme';
+import { Colors, Fonts } from '@/constants/theme';
 
 /**
  * Version provisoire de la politique de confidentialité. Le Play Store demandera la même page
@@ -48,5 +48,5 @@ export default function Privacy() {
 }
 
 const styles = StyleSheet.create({
-  section: { fontSize: 17, fontWeight: '600', color: Colors.text },
+  section: { fontSize: 17, fontFamily: Fonts.bold, color: Colors.text },
 });

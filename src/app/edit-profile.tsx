@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Body, Button, Card, Chip, Row, Screen } from '@/components/ui';
-import { Colors, Radius, Spacing } from '@/constants/theme';
+import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { LEVEL_LABELS, ZONE_LABELS } from '@/data/exercises';
 import { EQUIPMENT_LABELS, GOAL_LABELS, MINUTE_OPTIONS } from '@/lib/labels';
 import { remindersSupported, syncReminders } from '@/lib/reminders';
@@ -226,18 +226,19 @@ export default function EditProfile() {
 }
 
 const styles = StyleSheet.create({
-  label: { fontSize: 16, fontWeight: '600', color: Colors.text },
+  label: { fontSize: 16, fontFamily: Fonts.bold, color: Colors.text },
   input: {
     backgroundColor: Colors.background,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
     paddingVertical: 12,
     fontSize: 16,
+    fontFamily: Fonts.medium,
     borderWidth: 1,
     borderColor: Colors.border,
     color: Colors.text,
   },
   numberRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-  numberLabel: { width: 70, fontSize: 16, color: Colors.text },
+  numberLabel: { width: 70, fontSize: 16, fontFamily: Fonts.regular, color: Colors.text },
   numberInput: { flex: 1 },
 });
