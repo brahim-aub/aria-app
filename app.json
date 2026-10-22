@@ -19,7 +19,10 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "runtimeVersion": {
+        "policy": "appVersion"
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -49,6 +52,9 @@
         "projectId": "09e08644-b412-4329-9a02-20a4ad5f89c3"
       }
     },
-    "owner": "brahim.aub"
+    "owner": "brahim.aub",
+    "updates": {
+      "url": "https://u.expo.dev/09e08644-b412-4329-9a02-20a4ad5f89c3"
+    }
   }
 }
