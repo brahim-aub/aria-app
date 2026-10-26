@@ -7,9 +7,12 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { DialogHost } from '@/components/DialogHost';
 import { AchievementToast } from '@/components/AchievementToast';
 import { Button } from '@/components/ui';
+import { LocalSaveNotice } from '@/components/LocalSaveNotice';
+import { LocalLoadError } from '@/components/LocalLoadError';
 import { setupNotificationHandler, useReminderSync } from '@/lib/notifications';
 import { AppProvider, useApp } from '@/store/AppStore';
 import { AuthProvider, useAuth } from '@/store/AuthStore';
+import { SessionDraftProvider } from '@/store/SessionDraftStore';
 import { colors, font, radius, spacing } from '@/theme';
 
 setupNotificationHandler();
@@ -20,12 +23,13 @@ const theme = {
 };
 
 function RootStack() {
-  const { ready, data } = useApp();
+  const { ready, data, localSaveFailed, retryingLocalSave, retryLocalSave, localLoadFailed, retryingLocalLoad, retryLocalLoad } = useApp();
   const auth = useAuth();
   const [fontsLoaded, fontError] = useFonts({ Lato_400Regular, Lato_700Bold, Lato_900Black });
   // Rappels actifs seulement pour un utilisateur connecté (ou en mode local) dont les données sont à jour.
   const remindersActive = ready && auth.ready && (!auth.enabled || !!auth.session) && auth.sync.status !== 'pulling' && auth.sync.status !== 'choice';
   useReminderSync(data, remindersActive);
+  if (localLoadFailed) return <LocalLoadError retrying={retryingLocalLoad} onRetry={() => { void retryLocalLoad(); }} />;
   if (!ready || !auth.ready || (!fontsLoaded && !fontError)) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
@@ -36,7 +40,8 @@ function RootStack() {
   const signedIn = !auth.enabled || !!auth.session;
   const onboarded = signedIn && data.profile.onboarded;
   return (
-    <>
+    <View style={{ flex: 1 }}>
+      <LocalSaveNotice visible={localSaveFailed} retrying={retryingLocalSave} onRetry={() => { void retryLocalSave(); }} />
       <Stack
         screenOptions={{
           headerStyle: { backgroundColor: colors.bg },
@@ -78,7 +83,7 @@ function RootStack() {
         </View>
       )}
       {auth.sync.status === 'choice' && <ImportChoice onChoose={auth.resolveImport} />}
-    </>
+    </View>
   );
 }
 
@@ -103,8 +108,10 @@ export default function RootLayout() {
       <ThemeProvider value={theme}>
         <AppProvider>
           <AuthProvider>
-            <StatusBar style="dark" />
-            <RootStack />
+            <SessionDraftProvider>
+              <StatusBar style="dark" />
+              <RootStack />
+            </SessionDraftProvider>
           </AuthProvider>
         </AppProvider>
       </ThemeProvider>
