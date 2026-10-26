@@ -7,6 +7,9 @@ import { addDays, dateKey } from '@/lib/date';
 import { AiAuth, costOf, setUsageListener } from '@/lib/gemini';
 import { searchPrices, storeTotals } from '@/lib/prices';
 import { getDay } from '@/lib/schedule';
+import { createLocalSaver } from '@/lib/localSave';
+import { decodeLocalObject, readLocalSnapshot, type LocalLoadResult } from '@/lib/localLoad';
+import { getCoachUndoPatch } from '@/lib/coachUndo';
 import { computeStats } from '@/lib/stats';
 import { newId } from '@/lib/workout';
 
@@ -83,6 +86,12 @@ export function moveSessionIn(d: AppData, from: string, to: string, reason?: str
 
 type Store = {
   ready: boolean;
+  localLoadFailed: boolean;
+  retryingLocalLoad: boolean;
+  retryLocalLoad: () => Promise<void>;
+  localSaveFailed: boolean;
+  retryingLocalSave: boolean;
+  retryLocalSave: () => Promise<void>;
   data: AppData;
   apiKey: string;
   /** Comment appeler Gemini (relais du compte, clé personnelle ou intégrée, modèle). */
@@ -152,11 +161,11 @@ export function hydrate(saved: Partial<AppData> & { foodCache?: unknown }): AppD
 
 async function load(): Promise<AppData | null> {
   const raw = await AsyncStorage.getItem(STORAGE_KEY);
-  if (raw) return hydrate(JSON.parse(raw));
+  if (raw !== null) return hydrate(decodeLocalObject(raw));
   // Reprise des données de la première version de l'app.
   const legacy = await AsyncStorage.getItem(LEGACY_KEY);
-  if (legacy) {
-    const old = JSON.parse(legacy);
+  if (legacy !== null) {
+    const old = decodeLocalObject(legacy) as { name?: string; logs?: AppData['logs']; weights?: AppData['weights']; reminders?: AppData['reminders'] };
     return {
       ...DEFAULT_DATA,
       profile: { ...DEFAULT_PROFILE, name: old.name ?? '' },
@@ -171,8 +180,16 @@ async function load(): Promise<AppData | null> {
 export function AppProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<AppData>(DEFAULT_DATA);
   const [ready, setReady] = useState(false);
+  const [localLoadFailed, setLocalLoadFailed] = useState(false);
+  const [retryingLocalLoad, setRetryingLocalLoad] = useState(true);
+  const [localSaveFailed, setLocalSaveFailed] = useState(false);
+  const [retryingLocalSave, setRetryingLocalSave] = useState(false);
+  const [saveLocal] = useState(() => createLocalSaver(
+    (payload) => AsyncStorage.setItem(STORAGE_KEY, payload), setLocalSaveFailed,
+  ));
   const [unlocked, setUnlocked] = useState<string[]>([]);
   const firstCheck = useRef(true);
+  const localLoadAttempt = useRef(0);
   const [priceSearch, setPriceSearch] = useState<{ stores: string[]; done: string[] } | null>(null);
   const dataRef = useRef(data);
   const searching = useRef(false);
@@ -202,16 +219,45 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => setUsageListener(undefined);
   }, []);
 
-  useEffect(() => {
-    load()
-      .then((d) => d && setData(d))
-      .catch(() => {})
-      .finally(() => setReady(true));
+  const finishLocalLoad = useCallback((result: LocalLoadResult<AppData>) => {
+    if (result.ready) {
+      if (result.data) setData(result.data);
+      setLocalLoadFailed(false);
+      setReady(true);
+    } else setLocalLoadFailed(true);
+    setRetryingLocalLoad(false);
   }, []);
 
   useEffect(() => {
-    if (ready) AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data)).catch(() => {});
-  }, [data, ready]);
+    let active = true;
+    const attempt = ++localLoadAttempt.current;
+    void readLocalSnapshot(load).then((result) => {
+      if (active && attempt === localLoadAttempt.current) finishLocalLoad(result);
+    });
+    return () => { active = false; };
+  }, [finishLocalLoad]);
+
+  const retryLocalLoad = useCallback(async () => {
+    if (ready || retryingLocalLoad) return;
+    setRetryingLocalLoad(true);
+    const attempt = ++localLoadAttempt.current;
+    const result = await readLocalSnapshot(load);
+    if (attempt === localLoadAttempt.current) finishLocalLoad(result);
+  }, [ready, retryingLocalLoad, finishLocalLoad]);
+
+  useEffect(() => {
+    if (ready) void saveLocal(JSON.stringify(data));
+  }, [data, ready, saveLocal]);
+
+  const retryLocalSave = useCallback(async () => {
+    if (!ready) return;
+    setRetryingLocalSave(true);
+    try {
+      await saveLocal(JSON.stringify(dataRef.current));
+    } finally {
+      setRetryingLocalSave(false);
+    }
+  }, [ready, saveLocal]);
 
   // Détection des succès débloqués.
   useEffect(() => {
@@ -343,12 +389,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setData((d) => {
       const msg = d.chat.find((m) => m.id === id);
       if (!msg?.undo) return d;
+      const patch = getCoachUndoPatch(d, msg);
+      if (!patch) return d;
       return {
         ...d,
-        ...msg.undo,
-        // Un plan de repas ou des prix obtenus depuis ne sont pas des modifications à annuler.
-        nutrition: { ...msg.undo.nutrition, plan: d.nutrition.plan, priceCheck: d.nutrition.priceCheck },
-        chat: d.chat.map((m) => (m.id === id ? { ...m, undo: undefined, changes: [...(m.changes ?? []), '↩︎ Modifications annulées'] } : m)),
+        ...patch,
+        chat: d.chat.map((m) => (m.id === id ? { ...m, undo: undefined, undoAfter: undefined, changes: [...(m.changes ?? []), '↩︎ Modifications annulées'] } : m)),
       };
     });
   }, []);
@@ -407,12 +453,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addLimitation, removeLimitation, saveCustomSession, deleteCustomSession, addLog, deleteLog, addWeight, deleteWeight,
       setReminders, setApiKey, addMessage, patchMessage, clearChat, undoMessage, setNutritionPrefs, setMealPlan, resetAll,
       unlocked, dismissUnlocked, priceSearch, findPrices, selectStore,
+      localSaveFailed, retryingLocalSave, retryLocalSave,
+      localLoadFailed, retryingLocalLoad, retryLocalLoad,
     }),
     [
       ready, data, apiKey, ai, setAiTier, setHealthConsent, mutate, completeOnboarding, updateProfile, regeneratePlan, replaceDay, skipDay, restoreDay, moveDay,
       addLimitation, removeLimitation, saveCustomSession, deleteCustomSession, addLog, deleteLog, addWeight, deleteWeight,
       setReminders, setApiKey, addMessage, patchMessage, clearChat, undoMessage, setNutritionPrefs, setMealPlan, resetAll,
       unlocked, dismissUnlocked, priceSearch, findPrices, selectStore,
+      localSaveFailed, retryingLocalSave, retryLocalSave,
+      localLoadFailed, retryingLocalLoad, retryLocalLoad,
     ],
   );
 
