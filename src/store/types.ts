@@ -125,6 +125,8 @@ export type ChatMessage = {
   pending?: boolean;
   /** Présent tant que les modifications peuvent être annulées. */
   undo?: UndoSnapshot;
+  /** État après l’action, utilisé pour protéger les changements ultérieurs. */
+  undoAfter?: UndoSnapshot;
 };
 
 export type UndoSnapshot = Pick<AppData, 'profile' | 'plan' | 'overrides' | 'limitations' | 'nutrition' | 'customSessions'>;

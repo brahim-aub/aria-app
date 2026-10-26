@@ -1,4 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -80,6 +81,7 @@ export default function Onboarding() {
       const today = dateKey();
       const limitations: Omit<Limitation, 'id'>[] = pains.map((b) => ({ bodyPart: b, note: 'Signalé à l’inscription', startDate: today, endDate: addDays(today, painDays) }));
       completeOnboarding(p, limitations);
+      router.replace('/programme');
     }
   };
 

@@ -1,23 +1,25 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useKeepAwake } from 'expo-keep-awake';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, AppState, BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useDayActions } from '@/components/DayActions';
 import { ExerciseDemo } from '@/components/ExerciseDemo';
-import { ExerciseRow, Tag } from '@/components/kit';
+import { ExerciseRow, Notice, Tag } from '@/components/kit';
 import { Button, Card, H1, H2, IconButton, Muted, RatingPicker, Stat } from '@/components/ui';
 import { EXERCISES, exerciseName, musclesLabel } from '@/data/exercises';
 import { getPreset } from '@/data/presets';
-import { confirmAction } from '@/lib/confirm';
+import { confirmAction, notify } from '@/lib/confirm';
 import { dateKey, formatClock, relativeDay } from '@/lib/date';
 import { activeAvoid, getDay } from '@/lib/schedule';
 import { endCue, useCountdownCues, useNow } from '@/lib/timer';
 import { adaptSession, buildSteps, estimateKcal, estimateMinutes, Step, stepSeconds, WorkStep } from '@/lib/workout';
 import { useApp } from '@/store/AppStore';
-import type { AppData, SetLog, WorkoutSession } from '@/store/types';
+import { useSessionDraft } from '@/store/SessionDraftStore';
+import { resumeSessionClock, type SessionDetails, type SessionDraft } from '@/lib/sessionDraft';
+import type { AppData, SetLog } from '@/store/types';
 import { colors, font, radius, spacing, tints } from '@/theme';
 
 type Phase = 'intro' | 'running' | 'done';
@@ -27,7 +29,7 @@ const leave = () => (router.canGoBack() ? router.back() : router.replace('/'));
 const isTimed = (s: Step) => s.type === 'rest' || s.mode === 'time';
 const amountLabel = (s: WorkStep) => (s.mode === 'time' ? `${s.amount} s` : `${s.amount} reps`);
 
-type Resolved = { session: WorkoutSession; kicker: string; scheduledDate?: string; notes: string[]; dayStatus?: ReturnType<typeof getDay> };
+type Resolved = SessionDetails;
 
 function resolve(id: string, data: AppData): Resolved | undefined {
   const today = dateKey();
@@ -50,10 +52,11 @@ export default function SessionPlayer() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data, addLog } = useApp();
   const dayActions = useDayActions();
+  const { draft, ready: draftReady, error: draftError, saveDraft, discardDraft } = useSessionDraft();
   // La séance est figée au lancement de l'écran : elle ne bouge plus pendant l'effort.
-  const [resolved] = useState(() => resolve(String(id), data));
+  const [resolved, setResolved] = useState(() => resolve(String(id), data));
   const session = resolved?.session;
-  const avoid = useMemo(() => activeAvoid(data, dateKey()), [data]);
+  const [steps, setSteps] = useState(() => resolved ? buildSteps(resolved.session, activeAvoid(data, dateKey())) : []);
 
   const [phase, setPhase] = useState<Phase>('intro');
   const [index, setIndex] = useState(0);
@@ -70,8 +73,58 @@ export default function SessionPlayer() {
   const [draftWeight, setDraftWeight] = useState(0);
   const resultsRef = useRef<Record<number, SetLog>>({});
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const steps = useMemo(() => (session ? buildSteps(session, avoid) : []), [session]);
+  const draftCleared = useRef(false);
+  const logWritten = useRef(false);
+  const [saving, setSaving] = useState(false);
+  const snapshotRef = useRef<(() => SessionDraft | null) | null>(null);
+
+  const captureDraft = useCallback((): SessionDraft | null => {
+    if (!resolved || phase === 'intro') return null;
+    const currentTime = Date.now();
+    return {
+      version: 1, routeId: String(id), resolved, steps, phase, index,
+      remainingMs: phase === 'running' && endAt != null
+        ? pausedLeft ?? Math.max(0, endAt - currentTime) : null,
+      elapsedMs: Math.max(0, (phase === 'done' ? finishedAt : currentTime) - startedAt),
+      results, draftReps, draftWeight, difficulty, energy, note,
+    };
+  }, [resolved, phase, id, steps, index, endAt, pausedLeft, finishedAt, startedAt,
+    results, draftReps, draftWeight, difficulty, energy, note]);
+
+  useEffect(() => {
+    snapshotRef.current = captureDraft;
+    const next = captureDraft();
+    if (draftReady && next && !draftCleared.current) saveDraft(next);
+  }, [captureDraft, draftReady, saveDraft]);
+
+  useEffect(() => {
+    if (phase !== 'running' || !draftReady) return;
+    const checkpoint = () => {
+      const next = snapshotRef.current?.();
+      if (next && !draftCleared.current) saveDraft(next);
+    };
+    const timer = setInterval(checkpoint, 1000);
+    const listener = AppState.addEventListener('change', checkpoint);
+    if (Platform.OS === 'web') window.addEventListener('pagehide', checkpoint);
+    return () => {
+      clearInterval(timer);
+      listener.remove();
+      if (Platform.OS === 'web') window.removeEventListener('pagehide', checkpoint);
+    };
+  }, [phase, draftReady, saveDraft]);
+
+  const discard = useCallback(async () => {
+    draftCleared.current = true;
+    try {
+      await discardDraft();
+      return true;
+    } catch {
+      draftCleared.current = false;
+      notify('Sauvegarde indisponible', 'Impossible de retirer le brouillon. Réessaie avant de quitter.');
+      return false;
+    }
+  }, [discardDraft]);
+
   const step = steps[index];
   const timed = !!step && isTimed(step);
   const paused = pausedLeft != null;
@@ -142,9 +195,9 @@ export default function SessionPlayer() {
     Alert.alert('Arrêter la séance ?', 'Tu peux enregistrer ce que tu as déjà fait.', [
       { text: 'Continuer', style: 'cancel' },
       { text: 'Terminer ici', onPress: () => goTo(steps.length) },
-      { text: 'Abandonner', style: 'destructive', onPress: () => leave() },
+      { text: 'Abandonner', style: 'destructive', onPress: () => { void discard().then((ok) => { if (ok) leave(); }); } },
     ]);
-  }, [phase, goTo, steps.length]);
+  }, [phase, goTo, steps.length, discard]);
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -153,6 +206,55 @@ export default function SessionPlayer() {
     });
     return () => sub.remove();
   }, [confirmQuit]);
+
+
+  if (!draftReady) {
+    return <SafeAreaView style={styles.safe}><ActivityIndicator accessibilityLabel="Lecture de ta séance sauvegardée" /></SafeAreaView>;
+  }
+
+  if (phase === 'intro' && draft) {
+    const resume = () => {
+      if (draft.routeId !== String(id)) {
+        router.replace(`/seance/${draft.routeId}`);
+        return;
+      }
+      const clock = resumeSessionClock(draft, Date.now());
+      setResolved(draft.resolved);
+      setSteps(draft.steps);
+      setIndex(draft.index);
+      resultsRef.current = draft.results;
+      setResults(draft.results);
+      setDraftReps(draft.draftReps);
+      setDraftWeight(draft.draftWeight);
+      setDifficulty(draft.difficulty);
+      setEnergy(draft.energy);
+      setNote(draft.note);
+      setStartedAt(clock.startedAt);
+      setFinishedAt(clock.finishedAt);
+      setEndAt(draft.remainingMs === null ? null : Date.now() + draft.remainingMs);
+      setPausedLeft(clock.pausedLeft);
+      setPhase(draft.phase);
+    };
+    return (
+      <SafeAreaView style={styles.safe}>
+        <ScrollView contentContainerStyle={styles.scroll}>
+          <IconButton icon="close" label="Fermer" onPress={leave} />
+          <H1>Séance à reprendre</H1>
+          <H2>{draft.resolved.session.title}</H2>
+          <Muted>{Object.keys(draft.results).length} série(s) conservée(s) · {formatClock(draft.elapsedMs / 1000)} d’entraînement</Muted>
+          <Muted>{draft.phase === 'done'
+            ? 'Ta séance est terminée. Tu peux retrouver le bilan et l’enregistrer.'
+            : 'Reprends où tu en étais. Le chronomètre attendra que tu sois prêt.'}</Muted>
+          <Button title="Reprendre la séance" icon="play" big onPress={resume} />
+          <Button title="Abandonner cette séance" variant="ghost" onPress={async () => {
+            if (await confirmAction('Abandonner cette séance ?', 'Les séries de ce brouillon ne seront pas enregistrées dans ton journal.', 'Abandonner', true)) {
+              await discard();
+            }
+          }} />
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
   if (!session || !resolved) {
     return (
@@ -169,6 +271,7 @@ export default function SessionPlayer() {
   const estKcal = estimateKcal(session, data.profile.weightKg);
 
   const start = () => {
+    draftCleared.current = false;
     setStartedAt(Date.now());
     setPhase('running');
     goTo(0);
@@ -216,6 +319,7 @@ export default function SessionPlayer() {
           {day && !alreadyDone && <IconButton icon="ellipsis-horizontal" label="Options" onPress={() => dayActions.open(day)} />}
         </View>
         <ScrollView contentContainerStyle={styles.scroll}>
+          {draftError && <Notice tone="warning"><Muted>{draftError}</Muted></Notice>}
           <Text style={styles.kicker}>{resolved.kicker}</Text>
           <H1>{session.title}</H1>
           {session.focus ? <Muted>{session.focus}</Muted> : null}
@@ -259,8 +363,10 @@ export default function SessionPlayer() {
   // ───────── Fin ─────────
   if (phase === 'done') {
     const sum = summary();
-    const save = () => {
-      addLog({
+    const save = async () => {
+      if (saving) return;
+      setSaving(true);
+      if (!logWritten.current) addLog({
         kind: 'program',
         scheduledDate: resolved.scheduledDate,
         title: session.title,
@@ -272,7 +378,9 @@ export default function SessionPlayer() {
         volumeKg: sum.volumeKg,
         kcal: sum.kcal,
       });
-      leave();
+      logWritten.current = true;
+      if (await discard()) leave();
+      else setSaving(false);
     };
     return (
       <SafeAreaView style={styles.safe}>
@@ -306,13 +414,13 @@ export default function SessionPlayer() {
             <TextInput value={note} onChangeText={setNote} placeholder="Ex : pompes difficiles, genou OK…" placeholderTextColor={colors.muted} style={styles.input} multiline />
             <Muted style={{ fontSize: 12 }}>Le coach lit tes notes pour ajuster la suite.</Muted>
           </Card>
-          <Button title="Enregistrer" icon="checkmark" big onPress={save} />
+          <Button title="Enregistrer" icon="checkmark" big onPress={save} loading={saving} disabled={saving} />
           <Button
             title="Ne pas enregistrer"
             variant="ghost"
             onPress={() =>
               void confirmAction('Ne pas enregistrer ?', 'La séance ne comptera pas dans ta progression.', 'Confirmer', true).then((ok) => {
-                if (ok) leave();
+                if (ok) void discard().then((removed) => { if (removed) leave(); });
               })
             }
           />
@@ -357,6 +465,7 @@ export default function SessionPlayer() {
       </View>
 
       <ScrollView contentContainerStyle={[styles.scroll, { flexGrow: 1 }]} keyboardShouldPersistTaps="handled">
+        {draftError && <Notice tone="warning"><Muted>{draftError}</Muted></Notice>}
         <Text style={[styles.kicker, { color: accent }]}>{phaseLabel}</Text>
         <H1>{isRest ? 'Repos' : exercise?.name}</H1>
         {exercise && <Muted>{musclesLabel(exercise)}</Muted>}

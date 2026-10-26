@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { askCoach, useDayActions } from '@/components/DayActions';
 import { Notice, Panel, ProgressBar, SectionHeader } from '@/components/kit';
-import { Button, IconButton, IconName, Muted, Screen } from '@/components/ui';
+import { Button, H2, IconButton, IconName, Muted, Screen } from '@/components/ui';
 import { levelFromPoints, totalPoints } from '@/data/achievements';
 import { BODY_PART_LABEL } from '@/data/exercises';
 import { DAY_SHORT } from '@/data/generator';
@@ -14,6 +14,7 @@ import { getDay, nextSession, ScheduledDay, weekDays } from '@/lib/schedule';
 import { sessionsThisWeek, weekStreak } from '@/lib/stats';
 import { estimateKcal, estimateMinutes, sessionSummary } from '@/lib/workout';
 import { useApp } from '@/store/AppStore';
+import { useSessionDraft } from '@/store/SessionDraftStore';
 import { colors, font, radius, spacing, type } from '@/theme';
 
 const QUICK_PROMPTS: { label: string; icon: IconName; prompt: string }[] = [
@@ -35,6 +36,7 @@ const STATUS_LABEL: Record<ScheduledDay['status'], string> = {
 
 export default function Home() {
   const { data } = useApp();
+  const { draft } = useSessionDraft();
   const dayActions = useDayActions();
   const today = dateKey();
   const day = getDay(data, today);
@@ -70,6 +72,15 @@ export default function Home() {
         </Pressable>
         <IconButton icon="settings-outline" label="Réglages" onPress={() => router.push('/reglages')} />
       </View>
+
+
+      {draft && (
+        <Panel tone="surface">
+          <H2>Séance à reprendre</H2>
+          <Muted>{draft.resolved.session.title} · progression enregistrée sur cet appareil</Muted>
+          <Button title="Reprendre la séance" icon="play" onPress={() => router.push(`/seance/${draft.routeId}`)} />
+        </Panel>
+      )}
 
       {/* Semaine */}
       <View style={styles.week}>

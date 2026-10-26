@@ -12,6 +12,7 @@ import { JOB_LABEL } from '@/lib/nutrition';
 import { confirmAction, notify } from '@/lib/confirm';
 import { authErrorMessage } from '@/lib/supabase';
 import { useApp } from '@/store/AppStore';
+import { useSessionDraft } from '@/store/SessionDraftStore';
 import { useAuth } from '@/store/AuthStore';
 import type { Equipment, Goal, JobActivity, Level, Place, Profile, Reminders } from '@/store/types';
 import { colors, font, radius, spacing, type } from '@/theme';
@@ -31,6 +32,7 @@ export default function Reglages() {
   const [keyText, setKeyText] = useState(data.apiKey);
   const [testing, setTesting] = useState(false);
   const auth = useAuth();
+  const { discardDraft } = useSessionDraft();
 
   const set = (patch: Partial<Profile>) => setP((cur) => ({ ...cur, ...patch }));
   const profileDirty = JSON.stringify(p) !== JSON.stringify(data.profile) || String(data.profile.weightKg) !== weightText;
@@ -286,7 +288,7 @@ export default function Reglages() {
           icon="trash-outline"
           onPress={() =>
             void confirmAction('Tout effacer ?', auth.enabled ? 'Séances, pesées, conversation, succès et réglages seront supprimés définitivement, aussi sur ton compte.' : 'Séances, pesées, conversation, succès et réglages seront supprimés définitivement.', 'Tout effacer', true).then((ok) => {
-              if (ok) resetAll();
+              if (ok) void discardDraft().then(resetAll).catch(() => notify('Suppression impossible', 'Impossible de retirer la séance sauvegardée. Réessaie.'));
             })
           }
         />

@@ -84,8 +84,11 @@ export const itemKey = (item: Pick<MealItem, 'food' | 'search'>) => productKey(i
 /** Poids consommé en grammes : fourni par l'IA, sinon déduit du texte (« 60 g », « 20 cl », « 1 c.à.s. »…). */
 export function itemGrams(item: MealItem): number | undefined {
   if (item.grams && item.grams > 0) return item.grams;
-  const q = norm(item.qty).replace(',', '.');
-  const num = parseFloat(q.match(/[\d.]+/)?.[0] ?? '');
+  // Lire le nombre avant la normalisation, qui supprime les séparateurs décimaux.
+  const amount = item.qty.match(/\d+(?:[.,]\d+)?/)?.[0];
+  const num = parseFloat((amount ?? '').replace(',', '.'));
+  // Séparer aussi les unités accolées : « 0,5kg » ou « 250ml ».
+  const q = norm(item.qty.replace(/\d+(?:[.,]\d+)?/g, ' '));
   if (!Number.isFinite(num)) return undefined;
   if (/\bkg\b/.test(q)) return num * 1000;
   if (/\bg\b|gramme/.test(q)) return num;

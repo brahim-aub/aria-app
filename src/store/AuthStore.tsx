@@ -5,6 +5,7 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, 
 import { AppState } from 'react-native';
 
 import { supabase, supabaseEnabled } from '@/lib/supabase';
+import { writeSessionDraft } from '@/lib/sessionDraftStorage';
 
 import { hydrate, useApp } from './AppStore';
 import type { AppData } from './types';
@@ -207,17 +208,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (JSON.stringify(cloudCopy(dataRef.current)) !== lastSaved.current && pulledFor.current) {
       throw new Error('Tes dernières modifications ne sont pas encore enregistrées sur ton compte. Vérifie ta connexion internet puis réessaie.');
     }
+    if (userId) await writeSessionDraft(userId, null);
     await client().auth.signOut();
     // Les données du compte ne restent pas sur le téléphone après la déconnexion.
     clearLocal();
-  }, [clearLocal, pushNow]);
+  }, [clearLocal, pushNow, userId]);
 
   const deleteAccount = useCallback(async () => {
     const { error } = await client().rpc('delete_my_account');
     if (error) throw error;
+    if (userId) await writeSessionDraft(userId, null);
     await client().auth.signOut();
     clearLocal();
-  }, [clearLocal]);
+  }, [clearLocal, userId]);
 
   const value = useMemo<Auth>(
     () => ({
