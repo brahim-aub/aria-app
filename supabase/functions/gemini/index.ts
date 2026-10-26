@@ -59,10 +59,12 @@ Deno.serve(async (req) => {
 
   // 3. Interrupteurs et quotas (table app_config, clé « ai »).
   const { data: cfgRow } = await admin.from('app_config').select('value').eq('key', 'ai').maybeSingle();
-  const cfg = (cfgRow?.value ?? {}) as { enabled?: boolean; prices_enabled?: boolean; daily_limits?: Record<string, number> };
+  const cfg = (cfgRow?.value ?? {}) as { enabled?: boolean; prices_enabled?: boolean; daily_limits?: Record<string, number>; admin_emails?: string[] };
   if (cfg.enabled === false) return fail(503, 'Le coach est en pause pour maintenance. Réessaie plus tard.', 'DISABLED');
   if (kind === 'prices' && cfg.prices_enabled === false) return fail(503, 'La recherche de prix est momentanément désactivée.', 'DISABLED');
-  const limit = cfg.daily_limits?.[kind] ?? DEFAULT_LIMITS[kind];
+  // Comptes admin (cle admin_emails dans app_config) : pas de quota, pour tester sans limite.
+  const isAdmin = !!user.email && (cfg.admin_emails ?? []).some((e) => e.toLowerCase() === user.email!.toLowerCase());
+  const limit = isAdmin ? 1_000_000 : cfg.daily_limits?.[kind] ?? DEFAULT_LIMITS[kind];
   const { data: allowed, error: quotaError } = await admin.rpc('ai_take_quota', { p_user: user.id, p_kind: kind, p_limit: limit });
   if (quotaError) return fail(500, 'Quota indisponible');
   if (!allowed) return fail(429, 'Limite du jour atteinte pour cette fonction. Elle revient demain.', 'QUOTA');

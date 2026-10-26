@@ -1,7 +1,7 @@
 import { BODY_PART_LABEL, EQUIPMENT_LABEL, EXERCISE_LIST, EXERCISES } from '@/data/exercises';
 import { DAY_LONG, defaultDays, generateTemplates, GOAL_LABEL, LEVEL_LABEL } from '@/data/generator';
 import { moveSessionIn } from '@/store/AppStore';
-import type { AppData, BodyPart, MealPlan, NutritionPrefs, Profile, SessionExercise, WorkoutSession } from '@/store/types';
+import type { AppData, BodyPart, MealItem, MealPlan, NutritionPrefs, Profile, SessionExercise, WorkoutSession } from '@/store/types';
 
 import { addDays, dateKey, formatKey } from './date';
 import { AiAuth, generateJSON, GeminiContent } from './gemini';
@@ -65,6 +65,8 @@ const COACH_SCHEMA = {
               'create_custom_session',
               'set_nutrition_prefs',
               'generate_meal_plan',
+              'edit_meal_plan',
+              'project_weight',
               'search_prices',
               'log_weight',
             ],
@@ -107,6 +109,8 @@ const COACH_SCHEMA = {
           },
           mealInstructions: { type: 'string' },
           weightKg: { type: 'number' },
+          kcal: { type: 'integer', description: 'project_weight : kcal mangées par jour (omis = moyenne du plan de repas)' },
+          weeks: { type: 'integer', description: 'project_weight : durée en semaines (4 = 1 mois)' },
         },
         required: ['type'],
       },
@@ -129,6 +133,8 @@ export type CoachAction = {
   nutritionPrefs?: Partial<NutritionPrefs>;
   mealInstructions?: string;
   weightKg?: number;
+  kcal?: number;
+  weeks?: number;
 };
 
 export type CoachResponse = { reply: string; quickReplies?: string[]; actions: CoachAction[] };
@@ -202,6 +208,8 @@ ACTIONS DISPONIBLES
 - create_custom_session {session} : enregistre une séance dans « Mes séances » sans la planifier.
 - set_nutrition_prefs {nutritionPrefs} : enregistre goûts, dégoûts, allergies, régime, nb de repas, temps de cuisine, budget.
 - search_prices : obtient les prix indicatifs des ingrédients du plan de repas dans les magasins choisis (stores). Ne donne JAMAIS de prix toi-même : c'est l'app qui les cherche.
+- edit_meal_plan {mealInstructions} : MODIFIE le plan de repas EXISTANT sans le refaire : remplacer un aliment, changer un repas, enlever un ingrédient. Tout le reste du plan reste identique. mealInstructions = la modification précise (ex. « remplace les flocons d'avoine par du pain complet »).
+- project_weight {kcal, weeks} : projette l'évolution du poids si l'utilisateur mange kcal par jour pendant weeks semaines (« si je mange comme ça pendant 1 mois, mon poids ? »). Sans kcal, l'app prend la moyenne de son plan de repas. NE calcule JAMAIS toi-même une évolution de poids : lance cette action, l'app répond avec le calcul.
 - generate_meal_plan {mealInstructions} : lance la création d'un plan de repas sur 7 jours (fais-le seulement si les préférences sont connues ; sinon pose d'abord 2-3 questions sur les goûts).
 - log_weight {weightKg} : enregistre une pesée.
 
@@ -215,6 +223,8 @@ RÈGLES
 - Ne change jamais une séance déjà FAITE. Ne touche qu'aux dates demandées.
 - Reste prudent avec les débutants : volumes modestes, techniques simples.
 - Prix et budget : n'invente ni n'estime aucun prix. Pour connaître le coût des repas, enregistre les magasins (set_nutrition_prefs.stores) si besoin puis utilise search_prices. Si l'utilisateur donne un budget, enregistre weeklyBudget puis lance generate_meal_plan, puis search_prices.
+- Plan de repas : si un plan existe et que l'utilisateur veut juste changer un aliment ou un repas, utilise edit_meal_plan (jamais generate_meal_plan, qui refait tout). Si c'est un aliment qu'il n'aime pas, ajoute-le aussi à ses dégoûts avec set_nutrition_prefs (dislikes = anciens dégoûts + le nouveau). N'utilise generate_meal_plan que s'il demande de tout refaire.
+- Ta réponse annonce ce que tu lances (« je modifie tes menus »), jamais le résultat : c'est l'app qui exécute ensuite et confirme. Ne dis donc jamais « c'est fait » ni un montant pour une action nutrition que tu viens de lancer.
 - Nutrition : reste cohérent avec les besoins calculés, pas de régimes extrêmes (jamais sous le métabolisme de base), oriente vers un professionnel en cas de pathologie ou de trouble alimentaire.
 - quickReplies : suggestions courtes et utiles (ex. « Merci ! », « Et pour demain ? »).
 
@@ -239,7 +249,8 @@ ${recent || 'aucune pour le moment'}
 NUTRITION
 Besoins calculés par l'app : ${t.target} kcal/jour (métabolisme ${t.bmr}, quotidien ${t.daily}, sport ~${t.trainingPerDay}/jour), protéines ${t.proteinG} g, glucides ${t.carbsG} g, lipides ${t.fatG} g.
 Préférences ${d.nutrition.prefsSet ? 'renseignées' : 'PAS ENCORE renseignées'} : régime ${DIET_LABEL[prefs.diet]}, aime « ${prefs.likes || '?'} », n'aime pas « ${prefs.dislikes || '?'} », allergies « ${prefs.allergies || 'aucune'} », ${prefs.mealsPerDay} repas/jour, temps de cuisine ${prefs.cookingTime}, budget ${prefs.budget}${prefs.weeklyBudget ? ` (max ${prefs.weeklyBudget} €/semaine)` : ''}, magasins : ${prefs.stores?.length ? prefs.stores.join(', ') : 'pas encore choisis'}.
-Plan de repas actuel : ${describeMealPlan(d)}.`;
+Plan de repas actuel : ${describeMealPlan(d)}.
+Pesées : ${d.weights.length ? d.weights.slice(-4).map((w) => `${w.date.slice(0, 10)} ${w.kg} kg`).join(', ') : 'aucune'}.`;
 }
 
 function describeMealPlan(d: AppData) {
@@ -537,7 +548,7 @@ const MEAL_SCHEMA = {
   required: ['targetKcal', 'proteinG', 'carbsG', 'fatG', 'days', 'groceries', 'tips'],
 };
 
-export async function generateMealPlan(d: AppData, ai: AiAuth, instructions = ''): Promise<MealPlan> {
+export async function generateMealPlan(d: AppData, ai: AiAuth, instructions = '', priceInfo = ''): Promise<MealPlan> {
   const t = energyTargets(d);
   const p = d.profile;
   const prefs = d.nutrition.prefs;
@@ -552,8 +563,9 @@ Profil : ${p.sex}, ${p.age} ans, ${p.heightCm} cm, ${p.weightKg} kg. Objectif : 
 Cible moyenne : ${t.target} kcal/jour, protéines ${t.proteinG} g, glucides ${t.carbsG} g, lipides ${t.fatG} g.
 Semaine d'entraînement : ${days.join(' ; ')}.
 Régime : ${DIET_LABEL[prefs.diet]}. J'aime : ${prefs.likes || 'pas précisé'}. Je n'aime pas : ${prefs.dislikes || 'rien de spécial'}. Allergies/intolérances : ${prefs.allergies || 'aucune'}.
-${prefs.mealsPerDay} repas par jour (collations comprises). Temps de cuisine : ${prefs.cookingTime}. Budget : ${prefs.budget}${prefs.weeklyBudget ? `, maximum ${prefs.weeklyBudget} € de courses pour la semaine (privilégie des aliments économiques)` : ''}.${prefs.stores?.length ? ` Courses chez : ${prefs.stores.join(', ')} (choisis des produits qu'on y trouve).` : ''}
-${instructions ? `Demande particulière : ${instructions}` : ''}
+${prefs.mealsPerDay} repas par jour (collations comprises). Temps de cuisine : ${prefs.cookingTime}. Budget : ${prefs.budget}${prefs.weeklyBudget ? `, maximum ${prefs.weeklyBudget} € pour la nourriture mangée dans la semaine (privilégie des aliments économiques)` : ''}.${prefs.stores?.length ? ` Courses chez : ${prefs.stores.join(', ')} (choisis des produits qu'on y trouve).` : ''}
+${priceInfo ? `${priceInfo}
+` : ''}${instructions ? `Demande particulière : ${instructions}` : ''}
 Ajoute une liste de courses regroupée (max 30 lignes) et 3 à 5 conseils courts.`;
   const res = await generateJSON<Omit<MealPlan, 'createdAt'>>({
     ...ai,
@@ -579,4 +591,67 @@ Ajoute une liste de courses regroupée (max 30 lignes) et 3 à 5 conseils courts
     groceries: res.groceries ?? [],
     tips: res.tips ?? [],
   };
+}
+
+/**
+ * Modifie le plan de repas existant sans le refaire : le modèle ne renvoie que les repas changés
+ * (jour + position), le reste du plan est conservé tel quel.
+ */
+export async function editMealPlan(d: AppData, ai: AiAuth, instruction: string): Promise<{ plan: MealPlan; changed: number }> {
+  const plan = d.nutrition.plan;
+  if (!plan) throw new Error('Il n’y a pas encore de plan de repas à modifier.');
+  const prefs = d.nutrition.prefs;
+  const listing = plan.days
+    .map((day, di) => `[jour ${di}] ${day.day}\n` + day.meals.map((m, mi) => `  [repas ${mi}] ${m.name} (${m.kcal} kcal) : ${m.items.map((it) => `${it.food} ${it.qty}`).join(', ')}`).join('\n'))
+    .join('\n');
+  const system = `Tu modifies un plan de repas existant en français. Ne change QUE les repas concernés par la demande ; tous les autres restent intacts. Garde environ les mêmes kcal et protéines pour chaque repas modifié. Pour chaque aliment, donne food, qty, kcal, grams et search (nom précis du produit en rayon, sans marque). Ne donne aucun prix.`;
+  const user = `Plan actuel :
+${listing}
+
+Régime : ${DIET_LABEL[prefs.diet]}. Je n'aime pas : ${prefs.dislikes || 'rien de spécial'}. Allergies : ${prefs.allergies || 'aucune'}.
+Modification demandée : ${instruction}
+Renvoie uniquement les repas modifiés (day = numéro de jour, meal = numéro du repas) et la liste de courses complète mise à jour.`;
+  const res = await generateJSON<{ edits: { day: number; meal: number; name: string; kcal: number; proteinG?: number; recipe?: string; items: MealItem[] }[]; groceries?: string[] }>({
+    ...ai,
+    kind: 'meal',
+    system,
+    contents: [{ role: 'user', parts: [{ text: user }] }],
+    schema: {
+      type: 'object',
+      properties: {
+        edits: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              day: { type: 'integer' },
+              meal: { type: 'integer' },
+              name: { type: 'string' },
+              kcal: { type: 'integer' },
+              proteinG: { type: 'integer' },
+              recipe: { type: 'string' },
+              items: MEAL_SCHEMA.properties.days.items.properties.meals.items.properties.items,
+            },
+            required: ['day', 'meal', 'name', 'kcal', 'items'],
+          },
+        },
+        groceries: { type: 'array', items: { type: 'string' } },
+      },
+      required: ['edits'],
+    },
+    timeoutMs: 90000,
+    temperature: 0.5,
+  });
+  const days = plan.days.map((day) => ({ ...day, meals: [...day.meals] }));
+  let changed = 0;
+  for (const e of res.edits ?? []) {
+    const day = days[e.day];
+    if (!day || !day.meals[e.meal] || !Array.isArray(e.items) || !e.items.length) continue;
+    const old = day.meals[e.meal];
+    day.meals[e.meal] = { ...old, name: e.name || old.name, kcal: e.kcal || old.kcal, proteinG: e.proteinG ?? old.proteinG, recipe: e.recipe ?? old.recipe, items: e.items };
+    day.kcal = day.meals.reduce((s, m) => s + (m.kcal || 0), 0);
+    changed++;
+  }
+  if (!changed) throw new Error('Je n’ai trouvé aucun repas à modifier.');
+  return { plan: { ...plan, createdAt: new Date().toISOString(), days, groceries: res.groceries?.length ? res.groceries : plan.groceries }, changed };
 }

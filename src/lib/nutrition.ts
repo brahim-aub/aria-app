@@ -55,3 +55,54 @@ export function bmi(p: Pick<Profile, 'weightKg' | 'heightCm'>) {
   const m = p.heightCm / 100;
   return m > 0 ? p.weightKg / (m * m) : 0;
 }
+
+export type WeightProjection = {
+  intake: number;
+  maintenance: number;
+  /** kcal/jour en plus (+) ou en moins (-) par rapport à ce que le corps dépense. */
+  balance: number;
+  /** Poids estimé à la fin de chaque semaine (index 0 = aujourd'hui). */
+  weeks: number[];
+  endKg: number;
+  /** Fourchette : le corps s'adapte, les estimations varient d'une personne à l'autre. */
+  lowKg: number;
+  highKg: number;
+  perWeekKg: number;
+  warning?: string;
+};
+
+/**
+ * Projette l'évolution du poids si on mange `intake` kcal par jour pendant `weeks` semaines.
+ * Modèle simple : 7 700 kcal ≈ 1 kg, dépense recalculée chaque semaine avec le nouveau poids. C'est une estimation, pas un suivi.
+ */
+export function projectWeight(data: AppData, intake: number, weeks: number): WeightProjection {
+  const t = energyTargets(data);
+  const w0 = data.profile.weightKg;
+  const maintenance = t.daily + t.trainingPerDay;
+  const pts = [w0];
+  let w = w0;
+  // Chaque kg en moins abaisse le métabolisme de 10 kcal (Mifflin-St Jeor) × l'activité, et le coût du sport suit le poids.
+  const perKg = 10 * JOB_FACTOR[data.profile.job] + t.trainingPerDay / w0;
+  for (let i = 0; i < weeks; i++) {
+    const dep = maintenance + (w - w0) * perKg;
+    w += ((intake - dep) * 7) / 7700;
+    pts.push(Math.round(w * 10) / 10);
+  }
+  const delta = w - w0;
+  const endKg = Math.round(w * 10) / 10;
+  const perWeekKg = Math.round((delta / weeks) * 100) / 100;
+  let warning: string | undefined;
+  if (intake < t.bmr * 1.1) warning = 'Ce niveau est trop bas : sous ton métabolisme de base, ce n’est pas recommandé.';
+  else if (perWeekKg < -0.0075 * w0) warning = 'Perte rapide (plus de 0,75 % du poids par semaine) : surveille ta forme et ta récupération.';
+  return {
+    intake: Math.round(intake),
+    maintenance: Math.round(maintenance),
+    balance: Math.round(intake - maintenance),
+    weeks: pts,
+    endKg,
+    lowKg: Math.round((w0 + delta * 0.7) * 10) / 10,
+    highKg: Math.round((w0 + delta * 1.3) * 10) / 10,
+    perWeekKg,
+    warning,
+  };
+}

@@ -48,3 +48,6 @@ founder/
 
 # outils locaux Claude Code
 .claude/
+
+# cache local de la CLI Supabase
+supabase/.temp/

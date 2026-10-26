@@ -303,3 +303,24 @@ export const euro = (n: number) => `${n.toLocaleString('fr-FR', { minimumFractio
 export function gramsLabel(g: number) {
   return g >= 1000 ? `${(g / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} kg` : `${Math.round(g)} g`;
 }
+
+/**
+ * Prix déjà relevés (dernier plan) à donner au modèle quand il doit refaire des menus moins chers :
+ * il ne peut pas deviner les prix, mais il peut s'appuyer sur ceux qu'on a mesurés.
+ */
+export function priceHints(check: PriceCheck | undefined, store: string | undefined): string {
+  if (!check) return '';
+  const s = check.stores.find((x) => x.store === (store ?? check.selectedStore)) ?? check.stores[0];
+  if (!s) return '';
+  const rows = check.ingredients
+    .map((ing) => {
+      const it = s.items.find((i) => i.id === ing.id);
+      return it && ing.grams ? { name: ing.name, perKg: it.pricePerKg, cost: (ing.grams / 1000) * it.pricePerKg } : undefined;
+    })
+    .filter((r): r is { name: string; perKg: number; cost: number } => !!r);
+  if (!rows.length) return '';
+  const top = [...rows].sort((a, b) => b.cost - a.cost).slice(0, 8);
+  const cheap = [...rows].sort((a, b) => a.perKg - b.perKg).slice(0, 8);
+  const fmt = (r: { name: string; perKg: number; cost: number }) => `${r.name} (${r.perKg.toFixed(2)} €/kg, ${r.cost.toFixed(2)} € dans la semaine)`;
+  return `Prix indicatifs relevés chez ${s.store} sur le plan précédent. Postes les plus chers : ${top.map(fmt).join(' ; ')}. Produits les moins chers au kilo : ${cheap.map(fmt).join(' ; ')}.`;
+}

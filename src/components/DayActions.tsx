@@ -8,8 +8,8 @@ import { colors } from '@/theme';
 
 import { SheetOption, useActionSheet } from './ActionSheet';
 
-export function askCoach(prompt: string) {
-  router.navigate({ pathname: '/coach', params: { prompt } });
+export function askCoach(prompt: string, intent?: 'cheaper') {
+  router.navigate({ pathname: '/coach', params: intent ? { prompt, intent } : { prompt } });
 }
 
 /** Menu des actions possibles sur une journée du planning. */

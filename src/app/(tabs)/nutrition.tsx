@@ -11,10 +11,10 @@ import { generateMealPlan } from '@/lib/coach';
 import { confirmAction, notify } from '@/lib/confirm';
 import { ensureAiConsent } from '@/lib/consent';
 import { formatDate } from '@/lib/date';
-import { DIET_LABEL, energyTargets } from '@/lib/nutrition';
+import { DIET_LABEL, energyTargets, projectWeight } from '@/lib/nutrition';
 import { euro, gramsLabel, itemPrice, storeTotals } from '@/lib/prices';
 import { useApp } from '@/store/AppStore';
-import type { Meal, MealItem, PriceCheck } from '@/store/types';
+import type { AppData, Meal, MealItem, PriceCheck } from '@/store/types';
 import { colors, font, radius, spacing, type } from '@/theme';
 
 const openUrl = (url: string) => Linking.openURL(url).catch(() => {});
@@ -123,6 +123,12 @@ export default function Nutrition() {
       <Muted style={{ fontSize: 12 }}>
         Estimation recalculée chaque jour à partir de ton profil et des séances prévues cette semaine. Ce n’est pas un avis médical.
       </Muted>
+
+      <ProjectionCard
+        data={data}
+        intake={plan?.days.length ? Math.round(plan.days.reduce((s, d) => s + d.kcal, 0) / plan.days.length) : t.target}
+        fromPlan={!!plan?.days.length}
+      />
 
       <Card>
         <View style={styles.rowBetween}>
@@ -248,18 +254,18 @@ export default function Nutrition() {
                 )}
                 {budget && selectedTotal ? (
                   <>
-                    <ProgressBar ratio={selectedTotal.basket / budget} color={selectedTotal.basket <= budget ? colors.accent : colors.rest} />
-                    <Text style={{ color: selectedTotal.basket <= budget ? colors.accentInk : colors.rest, fontFamily: font.bold }}>
-                      {selectedTotal.basket <= budget
-                        ? `${selectedTotal.store} : dans ton budget (${budget} €), il reste ${euro(budget - selectedTotal.basket)}`
-                        : `${selectedTotal.store} : dépasse ton budget de ${euro(selectedTotal.basket - budget)}`}
+                    <ProgressBar ratio={selectedTotal.portions / budget} color={selectedTotal.portions <= budget ? colors.accent : colors.rest} />
+                    <Text style={{ color: selectedTotal.portions <= budget ? colors.accentInk : colors.rest, fontFamily: font.bold }}>
+                      {selectedTotal.portions <= budget
+                        ? `${selectedTotal.store} : les repas de la semaine tiennent dans ton budget (${budget} €), il reste ${euro(budget - selectedTotal.portions)}`
+                        : `${selectedTotal.store} : les repas dépassent ton budget de ${euro(selectedTotal.portions - budget)}`}
                     </Text>
-                    {selectedTotal.basket > budget && (
+                    {selectedTotal.portions > budget && (
                       <Button
                         title="Demander des menus moins chers"
                         icon="sparkles"
                         variant="secondary"
-                        onPress={() => askCoach(`Mes courses de la semaine coûtent ${euro(selectedTotal.basket)} chez ${selectedTotal.store}. Refais mes menus pour tenir dans mon budget de ${budget} €, puis recherche les prix.`)}
+                        onPress={() => askCoach(`Refais mes menus pour tenir dans mon budget de ${budget} € par semaine (les repas coûtent ${euro(selectedTotal.portions)} chez ${selectedTotal.store}).`, 'cheaper')}
                       />
                     )}
                   </>
@@ -447,6 +453,82 @@ function ItemRow({ item, check, store, open, onPress }: { item: MealItem; check?
         </View>
       )}
     </Pressable>
+  );
+}
+
+const HORIZONS = [
+  { label: '1 mois', weeks: 4 },
+  { label: '2 mois', weeks: 8 },
+  { label: '3 mois', weeks: 13 },
+];
+
+/** « Et si je suis ce plan ? » : évolution estimée du poids selon les kcal moyennes mangées. */
+function ProjectionCard({ data, intake, fromPlan }: { data: AppData; intake: number; fromPlan: boolean }) {
+  const [weeks, setWeeks] = useState(4);
+  const [custom, setCustom] = useState<number | null>(null);
+  const kcal = custom ?? intake;
+  const pr = projectWeight(data, kcal, weeks);
+  const w0 = data.profile.weightKg;
+  const delta = Math.round((pr.endKg - w0) * 10) / 10;
+  const min = Math.min(...pr.weeks);
+  const max = Math.max(...pr.weeks);
+  const span = Math.max(0.5, max - min);
+  const fmt = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const color = pr.warning ? colors.rest : colors.accentInk;
+  // Réel vs projection : depuis la première pesée des 8 dernières semaines.
+  const sorted = [...data.weights].sort((a, b) => a.date.localeCompare(b.date));
+  const last = sorted[sorted.length - 1];
+  const since = last ? new Date(last.date).getTime() - 56 * 86400000 : 0;
+  const first = sorted.find((x) => new Date(x.date).getTime() >= since);
+  const spanDays = first && last ? (new Date(last.date).getTime() - new Date(first.date).getTime()) / 86400000 : 0;
+  const realPerWeek = spanDays >= 7 && first && last ? Math.round(((last.kg - first.kg) / spanDays) * 7 * 100) / 100 : undefined;
+  return (
+    <Card>
+      <Text style={styles.cardTitle}>Et si je suis ce plan ?</Text>
+      <Muted>
+        {custom != null ? `Si tu manges ${kcal} kcal par jour` : fromPlan ? `En mangeant la moyenne de ton plan (${kcal} kcal/jour)` : `En mangeant ta cible (${kcal} kcal/jour)`}, avec tes séances prévues.
+      </Muted>
+      <View style={styles.tags}>
+        {HORIZONS.map((h) => (
+          <Chip key={h.weeks} label={h.label} active={weeks === h.weeks} onPress={() => setWeeks(h.weeks)} />
+        ))}
+      </View>
+      <View style={styles.tags}>
+        <Chip label={fromPlan ? 'Mon plan' : 'Ma cible'} active={custom == null} onPress={() => setCustom(null)} />
+        <Chip label="− 200 kcal" active={custom === intake - 200} onPress={() => setCustom(intake - 200)} />
+        <Chip label="+ 200 kcal" active={custom === intake + 200} onPress={() => setCustom(intake + 200)} />
+      </View>
+      <Text style={{ color, fontFamily: font.black, fontSize: 30, fontVariant: ['tabular-nums'] }}>
+        {fmt(w0)} → {fmt(pr.endKg)} kg
+      </Text>
+      <Text style={{ color: colors.text, fontFamily: font.bold }}>
+        {delta === 0 ? 'Poids stable' : `${delta > 0 ? '+' : '−'}${fmt(Math.abs(delta))} kg`} en {weeks === 4 ? '1 mois' : weeks === 8 ? '2 mois' : '3 mois'}, soit {pr.perWeekKg > 0 ? '+' : pr.perWeekKg < 0 ? '−' : ''}
+        {Math.abs(pr.perWeekKg).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} kg par semaine
+      </Text>
+      <Muted>
+        Fourchette réaliste : {fmt(Math.min(pr.lowKg, pr.highKg))} à {fmt(Math.max(pr.lowKg, pr.highKg))} kg. Ton corps dépense environ {pr.maintenance} kcal par jour, soit un bilan de {pr.balance > 0 ? '+' : ''}
+        {pr.balance} kcal.
+      </Muted>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 64 }} accessibilityLabel="Évolution estimée du poids semaine par semaine">
+        {pr.weeks.map((v, i) => (
+          <View key={i} style={{ flex: 1, height: 10 + ((v - min) / span) * 54, backgroundColor: i === 0 ? colors.borderStrong : color, borderRadius: 3, opacity: i === 0 ? 1 : 0.35 + (0.65 * i) / pr.weeks.length }} />
+        ))}
+      </View>
+      {realPerWeek != null ? (
+        <Muted>
+          Ta courbe réelle : {realPerWeek > 0 ? '+' : realPerWeek < 0 ? '−' : ''}
+          {Math.abs(realPerWeek).toLocaleString('fr-FR')} kg par semaine depuis le {formatDate(first?.date ?? "")}, contre {pr.perWeekKg > 0 ? '+' : pr.perWeekKg < 0 ? '−' : ''}
+          {Math.abs(pr.perWeekKg).toLocaleString('fr-FR')} prévu.{' '}
+          {Math.abs(realPerWeek - pr.perWeekKg) <= 0.15 ? 'Tu es dans la trajectoire.' : realPerWeek > pr.perWeekKg ? 'Tu évolues plus haut que prévu : vérifie tes quantités ou ton activité.' : 'Tu évolues plus bas que prévu.'}
+        </Muted>
+      ) : (
+        <Muted>Pèse-toi chaque semaine pour comparer ta vraie courbe à cette projection.</Muted>
+      )}
+      {pr.warning ? <Text style={{ color: colors.rest, fontFamily: font.bold }}>{pr.warning}</Text> : null}
+      <Muted style={{ fontSize: 12 }}>
+        Estimation simple (7 700 kcal ≈ 1 kg) : le poids réel dépend de l’eau, du sommeil, de la masse musculaire et de la régularité. Ce n’est pas un avis médical.
+      </Muted>
+    </Card>
   );
 }
 

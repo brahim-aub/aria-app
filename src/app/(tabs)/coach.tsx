@@ -5,10 +5,11 @@ import { ActivityIndicator, Animated, KeyboardAvoidingView, Pressable, ScrollVie
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button, Card, IconButton, Muted } from '@/components/ui';
-import { applyActions, askCoach, generateMealPlan } from '@/lib/coach';
+import { applyActions, askCoach, editMealPlan, generateMealPlan } from '@/lib/coach';
 import { confirmAction } from '@/lib/confirm';
 import { focusRing, PressState, pressFeedback } from '@/lib/motion';
-import { euro, storeTotals } from '@/lib/prices';
+import { energyTargets, projectWeight } from '@/lib/nutrition';
+import { euro, priceHints, storeTotals } from '@/lib/prices';
 import { newId } from '@/lib/workout';
 import { snapshot, useApp } from '@/store/AppStore';
 import { AI_CONSENT_TEXT } from '@/lib/consent';
@@ -28,7 +29,7 @@ const STARTERS = [
 export default function Coach() {
   const { data, apiKey, ai, setHealthConsent, addMessage, patchMessage, mutate, undoMessage, clearChat, setMealPlan, findPrices } = useApp();
   const auth = useAuth();
-  const params = useLocalSearchParams<{ prompt?: string }>();
+  const params = useLocalSearchParams<{ prompt?: string; intent?: string }>();
   const consent = !!data.healthConsentAt;
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -71,12 +72,13 @@ export default function Coach() {
   }, [addMessage, findPrices, patchMessage]);
 
   const runMealPlan = useCallback(
-    async (instructions: string) => {
+    async (instructions: string, withPrices = false) => {
       const id = addMessage({ role: 'model', text: 'Je prépare ton plan de repas sur 7 jours… ça prend environ 30 secondes 🍽️', pending: true });
       scrollToEnd();
       try {
         await new Promise((r) => setTimeout(r, 50));
-        const plan = await generateMealPlan(dataRef.current, ai, instructions);
+        const check = dataRef.current.nutrition.priceCheck;
+        const plan = await generateMealPlan(dataRef.current, ai, instructions, withPrices ? priceHints(check, check?.selectedStore) : '');
         setMealPlan(plan);
         patchMessage(id, {
           pending: false,
@@ -84,12 +86,63 @@ export default function Coach() {
           changes: ['Plan de repas sur 7 jours créé'],
           link: 'nutrition',
         });
+        return true;
       } catch (e) {
         patchMessage(id, { pending: false, error: true, text: `Je n’ai pas réussi à créer le plan de repas. ${(e as Error).message}` });
+        return false;
+      } finally {
+        scrollToEnd();
       }
-      scrollToEnd();
     },
     [addMessage, ai, patchMessage, setMealPlan],
+  );
+
+  /** Modifie le plan existant (un aliment, un repas) sans le refaire. */
+  const runMealEdit = useCallback(
+    async (instruction: string) => {
+      const id = addMessage({ role: 'model', text: 'Je modifie tes menus, le reste ne bouge pas… ✏️', pending: true });
+      scrollToEnd();
+      try {
+        await new Promise((r) => setTimeout(r, 50));
+        const { plan: before, priceCheck } = dataRef.current.nutrition;
+        const hadPrices = !!before && priceCheck?.planCreatedAt === before.createdAt;
+        const { plan, changed } = await editMealPlan(dataRef.current, ai, instruction);
+        mutate((d) => ({ ...d, nutrition: { ...d.nutrition, plan } }));
+        patchMessage(id, {
+          pending: false,
+          text: `C’est modifié : ${changed} repas changé${changed > 1 ? 's' : ''}, le reste de ton plan est identique.`,
+          changes: ['Plan de repas ajusté'],
+          link: 'nutrition',
+        });
+        return hadPrices;
+      } catch (e) {
+        patchMessage(id, { pending: false, error: true, text: `Je n’ai pas réussi à modifier tes menus. ${(e as Error).message}` });
+        return false;
+      } finally {
+        scrollToEnd();
+      }
+    },
+    [addMessage, ai, mutate, patchMessage],
+  );
+
+  /** Menus moins chers : on refait le plan à partir des prix déjà relevés, puis on recherche les prix. */
+  const runCheaper = useCallback(
+    async (budget: number) => {
+      setBusy(true);
+      try {
+        const check = dataRef.current.nutrition.priceCheck;
+        const total = check ? storeTotals(check).find((t) => t.store === check.selectedStore) : undefined;
+        const why = total ? `Les menus actuels coûtent environ ${euro(total.portions)} de nourriture mangée dans la semaine. ` : '';
+        const ok = await runMealPlan(`${why}Refais les menus pour que la nourriture consommée sur la semaine coûte au plus ${budget} €. Remplace les postes les plus chers par des alternatives économiques (légumineuses, œufs, riz, pâtes, légumes de saison, morceaux peu chers), en gardant les kcal et protéines cibles.`, true);
+        if (!ok) return;
+        await new Promise((r) => setTimeout(r, 50));
+        await runPriceSearch();
+      } finally {
+        setBusy(false);
+        scrollToEnd();
+      }
+    },
+    [runMealPlan, runPriceSearch],
   );
 
   const run = useCallback(
@@ -119,12 +172,35 @@ export default function Coach() {
             counters: { ...applied.data.counters, aiAdaptations: applied.data.counters.aiAdaptations + applied.adaptations },
           };
         });
-        const meal = res.actions.find((a) => a.type === 'generate_meal_plan');
-        if (meal) {
-          await new Promise((r) => setTimeout(r, 50));
-          await runMealPlan(meal.mealInstructions ?? '');
+        const proj = res.actions.find((a) => a.type === 'project_weight');
+        if (proj) {
+          const d = dataRef.current;
+          const plan = d.nutrition.plan;
+          const avg = plan?.days.length ? Math.round(plan.days.reduce((s, x) => s + x.kcal, 0) / plan.days.length) : energyTargets(d).target;
+          const kcal = proj.kcal && proj.kcal >= 500 ? Math.min(6000, proj.kcal) : avg;
+          const weeks = Math.min(26, Math.max(1, Math.round(proj.weeks || 4)));
+          const pr = projectWeight(d, kcal, weeks);
+          const kg = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+          addMessage({
+            role: 'model',
+            text: `Projection sur ${weeks} semaine${weeks > 1 ? 's' : ''} à ${kcal} kcal par jour (ton corps en dépense environ ${pr.maintenance}) : ${kg(d.profile.weightKg)} → **${kg(pr.endKg)} kg**, fourchette ${kg(Math.min(pr.lowKg, pr.highKg))} à ${kg(Math.max(pr.lowKg, pr.highKg))} kg, soit ${Math.abs(pr.perWeekKg).toLocaleString('fr-FR')} kg ${pr.perWeekKg < 0 ? 'perdus' : 'pris'} par semaine. C’est une estimation, pas une promesse.${pr.warning ? '\n⚠️ ' + pr.warning : ''}`,
+          });
         }
-        if (res.actions.some((a) => a.type === 'search_prices')) {
+        const edit = res.actions.find((a) => a.type === 'edit_meal_plan');
+        const meal = res.actions.find((a) => a.type === 'generate_meal_plan');
+        let repriced = false;
+        if (edit) {
+          await new Promise((r) => setTimeout(r, 50));
+          const hadPrices = await runMealEdit(edit.mealInstructions || text);
+          if (hadPrices && !res.actions.some((a) => a.type === 'search_prices')) {
+            await runPriceSearch();
+            repriced = true;
+          }
+        } else if (meal) {
+          await new Promise((r) => setTimeout(r, 50));
+          await runMealPlan(meal.mealInstructions ?? '', !!dataRef.current.nutrition.priceCheck);
+        }
+        if (!repriced && res.actions.some((a) => a.type === 'search_prices')) {
           await new Promise((r) => setTimeout(r, 50));
           await runPriceSearch();
         }
@@ -135,7 +211,7 @@ export default function Coach() {
         scrollToEnd();
       }
     },
-    [addMessage, ai, mutate, runMealPlan, runPriceSearch],
+    [addMessage, ai, mutate, runMealEdit, runMealPlan, runPriceSearch],
   );
 
   const send = useCallback(
@@ -158,16 +234,24 @@ export default function Coach() {
   useEffect(() => {
     const prompt = params.prompt;
     if (!prompt) return;
-    router.setParams({ prompt: undefined });
+    router.setParams({ prompt: undefined, intent: undefined });
+    if (params.intent === 'cheaper' && dataRef.current.healthConsentAt) {
+      // Action décidée par l'app, pas par le modèle : on ne le laisse pas promettre sans agir.
+      const budget = dataRef.current.nutrition.prefs.weeklyBudget;
+      if (budget) {
+        addMessage({ role: 'user', text: prompt });
+        runCheaper(budget);
+        return;
+      }
+    }
     if (prompt.trim().endsWith(':')) {
       // Le paramètre de navigation est une source externe : on le recopie dans le champ.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setInput(prompt);
       setTimeout(() => inputRef.current?.focus(), 300);
     } else {
       send(prompt);
     }
-  }, [params.prompt, send]);
+  }, [params.prompt, params.intent, send, addMessage, runCheaper]);
 
   const lastUser = [...data.chat].reverse().find((m) => m.role === 'user');
   const last = data.chat[data.chat.length - 1];
