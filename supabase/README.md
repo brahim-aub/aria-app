@@ -54,3 +54,19 @@ from ai_usage group by day, kind order by day desc;
 - Les noms sont normalisés (`productKey`, `storeKey` dans `src/lib/prices.ts`). « Riz basmati cru 1 kg » et « riz basmati » partagent la même ligne, et « Leclerc » vaut « E.Leclerc ». En revanche, « fromage blanc 0 % » et « 20 % » restent deux produits distincts.
 - N'importe quel compte connecté peut y écrire. Si des abus apparaissent, il faudra faire écrire le cache par l'Edge Function uniquement.
 - Les appels refusés par Google ne comptent pas dans le quota du jour (`ai_refund_quota`).
+
+### Plafonds par requête du relais Gemini
+
+Le serveur lit au maximum **256 Kio** par requête, avec **32 messages** au plus et du texte uniquement. Les corps trop volumineux ou invalides sont refusés avant la prise de quota.
+
+Une seule réponse est générée, avec les plafonds `maxOutputTokens` suivants :
+- conversation : **8 192** ;
+- menus : **24 576** (plan sur sept jours) ;
+- prix : **4 096** ;
+- test : **1 024**.
+
+Une limite demandée plus basse est respectée. Le client ne peut pas augmenter les plafonds ni demander de sortie image/audio ou faire charger un contenu distant. La recherche Google reste réservée aux prix.
+
+Le corps reçu de Google est limité à **2 Mio**. Une réponse arrêtée à sa limite de tokens est signalée avec `OUTPUT_LIMIT`, afin de ne pas renvoyer un JSON tronqué ou relancer automatiquement d'autres modèles. Cet appel conserve son quota et sa consommation : il a déjà sollicité Gemini.
+
+Ces limites bornent chaque appel ; elles ne constituent pas un budget financier mensuel global. Une requête refusée avant la prise de quota ne lance aucun appel Google.
