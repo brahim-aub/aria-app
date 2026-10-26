@@ -99,64 +99,6 @@ export default function Nutrition() {
     <Screen>
       <H1 style={{ marginTop: spacing.sm }}>Nutrition</H1>
 
-      <Panel tone="ink">
-        <Text style={styles.heroKicker}>Tes besoins par jour</Text>
-        <Text style={styles.heroBig}>
-          {t.target}
-          <Text style={styles.heroUnit}> kcal</Text>
-        </Text>
-        <Text style={styles.heroText}>
-          Objectif « {GOAL_LABEL[p.goal].toLowerCase()} ». Métabolisme {t.bmr}, quotidien {t.daily}, sport environ {t.trainingPerDay} par jour.
-        </Text>
-        <View style={{ gap: spacing.sm, marginTop: spacing.xs }}>
-          {macros.map((m) => (
-            <View key={m.label} style={{ gap: 4 }}>
-              <View style={styles.rowBetween}>
-                <Text style={styles.macroLabel}>{m.label}</Text>
-                <Text style={styles.macroValue}>{m.g} g</Text>
-              </View>
-              <ProgressBar ratio={m.kcal / t.target} height={8} color={colors.accent} track={colors.darkAlt} label={`${m.label} : ${m.g} g`} />
-            </View>
-          ))}
-        </View>
-      </Panel>
-      <Muted style={{ fontSize: 12 }}>
-        Estimation recalculée chaque jour à partir de ton profil et des séances prévues cette semaine. Ce n’est pas un avis médical.
-      </Muted>
-
-      <ProjectionCard
-        data={data}
-        intake={plan?.days.length ? Math.round(plan.days.reduce((s, d) => s + d.kcal, 0) / plan.days.length) : t.target}
-        fromPlan={!!plan?.days.length}
-      />
-
-      <Card>
-        <View style={styles.rowBetween}>
-          <Text style={styles.cardTitle}>Mes goûts</Text>
-          <Pressable onPress={() => router.push('/preferences-repas')} hitSlop={8}>
-            <Text style={styles.link}>{prefsSet ? 'Modifier' : 'Renseigner'}</Text>
-          </Pressable>
-        </View>
-        {prefsSet ? (
-          <>
-            <View style={styles.tags}>
-              <Tag label={DIET_LABEL[prefs.diet]} color={colors.pink} />
-              <Tag label={`${prefs.mealsPerDay} repas/jour`} color={colors.yellow} />
-              <Tag label={`Cuisine ${prefs.cookingTime}`} color={colors.cyan} />
-              {budget ? <Tag label={`Max ${budget} €/sem.`} color={colors.accentInk} icon="wallet" /> : null}
-              {stores.map((s) => (
-                <Tag key={s} label={s} color={colors.violet} icon="storefront" />
-              ))}
-            </View>
-            {prefs.likes ? <Muted>J’aime : {prefs.likes}</Muted> : null}
-            {prefs.dislikes ? <Muted>J’évite : {prefs.dislikes}</Muted> : null}
-            {prefs.allergies ? <Muted>Allergies : {prefs.allergies}</Muted> : null}
-          </>
-        ) : (
-          <Muted>Dis-moi ce que tu aimes manger et où tu fais tes courses pour des menus qui te ressemblent.</Muted>
-        )}
-      </Card>
-
       <SectionHeader title="Mes menus" action={plan ? 'Ajuster avec le coach' : undefined} onAction={() => askCoach('Ajuste mon plan de repas : ')} />
       {loading ? (
         <Card style={{ alignItems: 'center', paddingVertical: spacing.xl }}>
@@ -176,6 +118,32 @@ export default function Nutrition() {
           <Muted>
             Créé le {formatDate(plan.createdAt)} · {plan.targetKcal} kcal · P {plan.proteinG} g · G {plan.carbsG} g · L {plan.fatG} g
           </Muted>
+
+          <View style={styles.tags}>
+            {plan.days.map((d, i) => (
+              <Chip key={i} label={d.day.slice(0, 3)} active={i === di} onPress={() => setDayIndex(i)} />
+            ))}
+          </View>
+          {day && (
+            <>
+              <View style={styles.rowBetween}>
+                <Text style={styles.cardTitle}>{day.day.charAt(0).toUpperCase() + day.day.slice(1)}</Text>
+                <View style={{ flexDirection: 'row', gap: spacing.xs }}>
+                  <Tag label={`${day.kcal} kcal`} color={colors.pink} icon="flame" />
+                  {dayCost && dayCost.found > 0 && <Tag label={euro(dayCost.cost)} color={colors.accentInk} icon="wallet" />}
+                </View>
+              </View>
+              <ProgressBar ratio={day.kcal / plan.targetKcal} height={5} label="Calories du jour par rapport à l’objectif" />
+              {dayCost && dayCost.missing > 0 && dayCost.found > 0 && (
+                <Muted style={{ fontSize: 12 }}>
+                  Coût chez {store} hors {dayCost.missing} produit(s) dont le prix n’a pas été trouvé.
+                </Muted>
+              )}
+              {day.meals.map((m, i) => (
+                <MealCard key={i} meal={m} check={check} store={store} />
+              ))}
+            </>
+          )}
 
           {/* Prix réels en magasin */}
           <Card style={{ borderColor: colors.dark }}>
@@ -300,32 +268,6 @@ export default function Nutrition() {
             )}
           </Card>
 
-          <View style={styles.tags}>
-            {plan.days.map((d, i) => (
-              <Chip key={i} label={d.day.slice(0, 3)} active={i === di} onPress={() => setDayIndex(i)} />
-            ))}
-          </View>
-          {day && (
-            <>
-              <View style={styles.rowBetween}>
-                <Text style={styles.cardTitle}>{day.day.charAt(0).toUpperCase() + day.day.slice(1)}</Text>
-                <View style={{ flexDirection: 'row', gap: spacing.xs }}>
-                  <Tag label={`${day.kcal} kcal`} color={colors.pink} icon="flame" />
-                  {dayCost && dayCost.found > 0 && <Tag label={euro(dayCost.cost)} color={colors.accentInk} icon="wallet" />}
-                </View>
-              </View>
-              <ProgressBar ratio={day.kcal / plan.targetKcal} height={5} label="Calories du jour par rapport à l’objectif" />
-              {dayCost && dayCost.missing > 0 && dayCost.found > 0 && (
-                <Muted style={{ fontSize: 12 }}>
-                  Coût chez {store} hors {dayCost.missing} produit(s) dont le prix n’a pas été trouvé.
-                </Muted>
-              )}
-              {day.meals.map((m, i) => (
-                <MealCard key={i} meal={m} check={check} store={store} />
-              ))}
-            </>
-          )}
-
           <Card>
             <Pressable style={styles.rowBetween} onPress={() => setShowGroceries((v) => !v)}>
               <Text style={styles.cardTitle}>Liste de courses{check && store ? ` · ${store}` : ''}</Text>
@@ -374,6 +316,66 @@ export default function Nutrition() {
           />
         </>
       )}
+
+      <Card>
+        <View style={styles.rowBetween}>
+          <Text style={styles.cardTitle}>Mes goûts</Text>
+          <Pressable onPress={() => router.push('/preferences-repas')} hitSlop={8}>
+            <Text style={styles.link}>{prefsSet ? 'Modifier' : 'Renseigner'}</Text>
+          </Pressable>
+        </View>
+        {prefsSet ? (
+          <>
+            <View style={styles.tags}>
+              <Tag label={DIET_LABEL[prefs.diet]} color={colors.pink} />
+              <Tag label={`${prefs.mealsPerDay} repas/jour`} color={colors.yellow} />
+              <Tag label={`Cuisine ${prefs.cookingTime}`} color={colors.cyan} />
+              {budget ? <Tag label={`Max ${budget} €/sem.`} color={colors.accentInk} icon="wallet" /> : null}
+              {stores.map((s) => (
+                <Tag key={s} label={s} color={colors.violet} icon="storefront" />
+              ))}
+            </View>
+            {prefs.likes ? <Muted>J’aime : {prefs.likes}</Muted> : null}
+            {prefs.dislikes ? <Muted>J’évite : {prefs.dislikes}</Muted> : null}
+            {prefs.allergies ? <Muted>Allergies : {prefs.allergies}</Muted> : null}
+          </>
+        ) : (
+          <Muted>Dis-moi ce que tu aimes manger et où tu fais tes courses pour des menus qui te ressemblent.</Muted>
+        )}
+      </Card>
+
+      <Panel tone="ink">
+        <Text style={styles.heroKicker}>Tes besoins par jour</Text>
+        <Text style={styles.heroBig}>
+          {t.target}
+          <Text style={styles.heroUnit}> kcal</Text>
+        </Text>
+        <Text style={styles.heroText}>
+          Objectif « {GOAL_LABEL[p.goal].toLowerCase()} ». Métabolisme {t.bmr}, quotidien {t.daily}, sport environ {t.trainingPerDay} par jour.
+        </Text>
+        <Text style={styles.heroText}>Répartition de ta cible quotidienne</Text>
+        <View style={{ gap: spacing.sm, marginTop: spacing.xs }}>
+          {macros.map((m) => (
+            <View key={m.label} style={{ gap: 4 }}>
+              <View style={styles.rowBetween}>
+                <Text style={styles.macroLabel}>{m.label}</Text>
+                <Text style={styles.macroValue}>{m.g} g</Text>
+              </View>
+              <ProgressBar ratio={m.kcal / t.target} height={8} color={colors.accent} track={colors.darkAlt} label={`${m.label} : objectif de ${m.g} g par jour`} />
+            </View>
+          ))}
+        </View>
+      </Panel>
+      <Muted style={{ fontSize: 12 }}>
+        Estimation recalculée chaque jour à partir de ton profil et des séances prévues cette semaine. Ce n’est pas un avis médical.
+      </Muted>
+
+      <ProjectionCard
+        data={data}
+        intake={plan?.days.length ? Math.round(plan.days.reduce((s, d) => s + d.kcal, 0) / plan.days.length) : t.target}
+        fromPlan={!!plan?.days.length}
+      />
+
     </Screen>
   );
 }

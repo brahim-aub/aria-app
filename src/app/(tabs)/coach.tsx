@@ -13,6 +13,7 @@ import { euro, priceHints, storeTotals } from '@/lib/prices';
 import { newId } from '@/lib/workout';
 import { snapshot, useApp } from '@/store/AppStore';
 import { AI_CONSENT_TEXT } from '@/lib/consent';
+import { getCoachUndoPatch } from '@/lib/coachUndo';
 import { useAuth } from '@/store/AuthStore';
 import type { ChatMessage } from '@/store/types';
 import { colors, radius, spacing, font } from '@/theme';
@@ -164,11 +165,12 @@ export default function Coach() {
             quickReplies: res.quickReplies,
             changes: applied.changes.length ? applied.changes : undefined,
             undo: applied.changes.length ? snapshot(d) : undefined,
+            undoAfter: applied.changes.length ? snapshot(applied.data) : undefined,
             link: applied.changes.length ? (applied.nutritionOnly ? 'nutrition' : 'programme') : undefined,
           };
           return {
             ...applied.data,
-            chat: [...d.chat.map((m) => (m.undo ? { ...m, undo: undefined } : m)), msg].slice(-200),
+            chat: [...d.chat.map((m) => (m.undo ? { ...m, undo: undefined, undoAfter: undefined } : m)), msg].slice(-200),
             counters: { ...applied.data.counters, aiAdaptations: applied.data.counters.aiAdaptations + applied.adaptations },
           };
         });
@@ -327,7 +329,16 @@ export default function Coach() {
 
           {data.chat.map((m) => (
             <View key={m.id} style={{ gap: spacing.sm }}>
-              <Bubble msg={m} onUndo={() => undoMessage(m.id)} onRetry={m.error && lastUser && m === last ? () => run(lastUser.text) : undefined} />
+              <Bubble
+                msg={m}
+                onUndo={() => undoMessage(m.id)}
+                undoDisabledReason={m.undo && !getCoachUndoPatch(data, m)
+                  ? m.undoAfter
+                    ? 'Annulation indisponible : les données concernées ont changé depuis cette action.'
+                    : 'Cette ancienne modification ne peut plus être annulée en toute sécurité.'
+                  : undefined}
+                onRetry={m.error && lastUser && m === last ? () => run(lastUser.text) : undefined}
+              />
               {m === last && m.role === 'model' && !busy && m.quickReplies?.length ? (
                 <View style={styles.starters}>
                   {m.quickReplies.map((q) => (
@@ -370,7 +381,7 @@ export default function Coach() {
   );
 }
 
-function Bubble({ msg, onUndo, onRetry }: { msg: ChatMessage; onUndo?: () => void; onRetry?: () => void }) {
+function Bubble({ msg, onUndo, onRetry, undoDisabledReason }: { msg: ChatMessage; onUndo?: () => void; onRetry?: () => void; undoDisabledReason?: string }) {
   const mine = msg.role === 'user';
   return (
     <View style={[styles.bubbleRow, mine && { justifyContent: 'flex-end' }]}>
@@ -392,11 +403,23 @@ function Bubble({ msg, onUndo, onRetry }: { msg: ChatMessage; onUndo?: () => voi
                 </Pressable>
               )}
               {msg.undo && onUndo && (
-                <Pressable onPress={onUndo}>
+                <Pressable
+                  onPress={onUndo}
+                  disabled={!!undoDisabledReason}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: !!undoDisabledReason }}
+                  accessibilityHint={undoDisabledReason}
+                  style={{ minHeight: 44, justifyContent: 'center', opacity: undoDisabledReason ? 0.5 : 1 }}
+                >
                   <Text style={[styles.link, { color: colors.muted }]}>Annuler</Text>
                 </Pressable>
               )}
             </View>
+            {msg.undo && undoDisabledReason && (
+              <Text style={{ color: colors.muted, fontFamily: font.regular, fontSize: 12, lineHeight: 18 }} accessibilityLiveRegion="polite">
+                {undoDisabledReason}
+              </Text>
+            )}
           </View>
         ) : null}
         {onRetry && (

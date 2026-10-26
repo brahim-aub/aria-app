@@ -15,7 +15,7 @@ const TABS: { name: string; title: string; icon: IconName; iconActive: IconName 
   { name: 'profil', title: 'Profil', icon: 'person-outline', iconActive: 'person' },
 ];
 
-/** Barre flottante encre ; l'onglet actif devient une pastille citron avec son nom. */
+/** Barre flottante encre ; chaque onglet garde son nom, l'actif est surligné en citron. */
 function TabBar({ state, emitter, navigateToTab, insets }: BottomTabBarProps) {
   return (
     <View style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
@@ -42,11 +42,14 @@ function TabBar({ state, emitter, navigateToTab, insets }: BottomTabBarProps) {
               style={(s: PressState) => [styles.item, focused && styles.itemActive, !focused && s.hovered && { backgroundColor: colors.darkAlt }, focusRing(s, radius.pill, colors.accent)]}
             >
               <Ionicons name={focused ? tab.iconActive : tab.icon} size={20} color={focused ? colors.onAccent : colors.onDarkMuted} />
-              {focused && (
-                <Text style={styles.label} numberOfLines={1}>
-                  {tab.title}
-                </Text>
-              )}
+              <Text
+                style={[styles.label, { color: focused ? colors.onAccent : colors.onDarkMuted }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.85}
+              >
+                {tab.title}
+              </Text>
             </Pressable>
           );
         })}
@@ -66,7 +69,7 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  wrap: { backgroundColor: colors.bg, paddingHorizontal: spacing.md, paddingTop: spacing.xs },
+  wrap: { backgroundColor: colors.bg, paddingHorizontal: spacing.sm, paddingTop: spacing.xs },
   bar: {
     width: '100%',
     maxWidth: 520,
@@ -76,10 +79,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: colors.dark,
     borderRadius: radius.pill,
-    padding: 6,
+    padding: 4,
     ...floating,
   },
-  item: { height: 46, minWidth: 46, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6, paddingHorizontal: 12 },
-  itemActive: { backgroundColor: colors.accent, paddingHorizontal: 16 },
-  label: { color: colors.onAccent, fontFamily: font.black, fontSize: 13 },
+  item: { flex: 1, minWidth: 0, minHeight: 58, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', gap: 3, paddingHorizontal: 0, paddingVertical: 6 },
+  itemActive: { backgroundColor: colors.accent },
+  label: { alignSelf: 'stretch', textAlign: 'center', fontFamily: font.black, fontSize: 11, lineHeight: 14 },
 });
