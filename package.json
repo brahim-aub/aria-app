@@ -19,6 +19,7 @@
     "expo-router": "~58.0.25",
     "expo-status-bar": "~58.0.4",
     "expo-updates": "~58.0.18",
+    "expo-video": "~58.0.12",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-native": "0.88.0",
@@ -41,7 +42,14 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "lint": "expo lint",
-    "test": "node --test tests/*.test.cjs"
+    "test": "node --test tests/*.test.cjs",
+    "media:prepare": "node scripts/prepare-exercise-media.cjs",
+    "prestart": "npm run media:prepare",
+    "preweb": "npm run media:prepare",
+    "preandroid": "npm run media:prepare",
+    "preios": "npm run media:prepare",
+    "build:web": "npm run media:prepare && expo export --platform web",
+    "eas-build-post-install": "npm run media:prepare"
   },
   "private": true
 }

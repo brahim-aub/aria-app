@@ -187,13 +187,13 @@ export default function Reglages() {
 
       <Card>
         <H2>Coach IA</H2>
-        <Muted>Modèle utilisé par le coach et pour les menus. La recherche de prix utilise toujours le modèle le plus précis.</Muted>
+        <Muted>Modèle utilisé par le coach et pour les menus. La recherche de prix privilégie le mode économique et réutilise les prix récents.</Muted>
         <View style={styles.chips}>
           <Chip label="Économique" icon="leaf-outline" active={ai.tier === 'eco'} onPress={() => setAiTier('eco')} />
           <Chip label="Qualité" icon="diamond-outline" active={ai.tier === 'quality'} onPress={() => setAiTier('quality')} />
         </View>
         <Muted style={{ fontSize: 12 }}>
-          {ai.tier === 'eco' ? 'Gemini Flash-Lite, environ 5 fois moins cher. Bascule sur Flash si besoin.' : 'Gemini Flash : réponses plus fines, coût plus élevé.'}
+          {ai.tier === 'eco' ? 'Gemini Flash-Lite pour les tâches courantes. Un autre modèle prend le relais en cas d’indisponibilité.' : 'Gemini Flash : réponses plus fines, coût plus élevé.'}
         </Muted>
         <AiUsageSummary />
         <Text style={styles.label}>Clé personnelle (facultatif)</Text>
@@ -312,6 +312,7 @@ function AiUsageSummary() {
   return (
     <View style={styles.usage}>
       <Text style={styles.label}>Consommation de ce mois</Text>
+      {rows.some(([, k]) => k.usageVersion !== 2 || k.legacyEstimate) && <Muted>Ce mois comprend des estimations anciennes ; les prochains appels utilisent le comptage corrigé.</Muted>}
       {rows.map(([kind, k]) => (
         <View key={kind} style={styles.rowBetween}>
           <Muted>{KIND_LABEL[kind]} · {k.calls} appel{k.calls > 1 ? 's' : ''}</Muted>
@@ -322,7 +323,7 @@ function AiUsageSummary() {
       ))}
       <Muted style={{ fontSize: 12 }}>
         Coût estimé des tokens : {total.toLocaleString('fr-FR', { maximumFractionDigits: 4 })} $
-        {searches ? ` · ${searches} recherche${searches > 1 ? 's' : ''} Google (gratuites jusqu’à 5 000/mois, puis ${SEARCH_PRICE} $ chacune)` : ''}. Tarif de référence relevé pour l’étude, hors cache.
+        {searches ? ` · ${searches} requête(s) de recherche signalée(s) (hors estimation tokens ; jusqu’à ${SEARCH_PRICE} $ par requête hors franchise globale)` : ''}. Estimation Standard avec remise des tokens en cache, hors taxes et recherche. La facture Google fait foi.
       </Muted>
     </View>
   );

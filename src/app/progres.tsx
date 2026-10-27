@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Keyboard, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { BarChart } from '@/components/BarChart';
-import { Notice } from '@/components/kit';
+import { Notice, ProgressBar, Segmented } from '@/components/kit';
 import { Button, Card, difficultyLabel, energyLabel, H2, IconButton, Muted, Screen, Stat } from '@/components/ui';
 import { confirmAction, notify } from '@/lib/confirm';
 import { formatDate, formatShort, lastWeeks, weekKey } from '@/lib/date';
@@ -16,7 +16,11 @@ export default function Progres() {
 
   const totalMin = data.logs.reduce((a, l) => a + l.durationMin, 0);
   const byWeek = countByWeek(data.logs);
-  const weeks = lastWeeks(8);
+  const [period, setPeriod] = useState<'4' | '8' | '12'>('8');
+  const currentWeek = byWeek.get(weekKey(new Date()));
+  const completed = currentWeek?.count ?? 0;
+  const goal = Math.max(1, data.profile.sessionsPerWeek);
+  const weeks = lastWeeks(Number(period));
   const minutesBars = weeks.map((w, i) => ({
     label: formatShort(w),
     value: byWeek.get(weekKey(w))?.minutes ?? 0,
@@ -48,6 +52,13 @@ export default function Progres() {
   return (
     <Screen top={false}>
 
+      <Card>
+        <Muted>CETTE SEMAINE</Muted>
+        <Text style={{ color: colors.accent, fontFamily: font.black, fontSize: 36 }}>{completed}<Text style={{ color: colors.muted, fontSize: 20 }}> / {goal} séances</Text></Text>
+        <ProgressBar ratio={completed / goal} label={completed + ' séances terminées sur un objectif de ' + goal} />
+        <Muted>{completed >= goal ? 'Ton objectif est atteint. Chaque séance supplémentaire est un bonus.' : completed === 0 ? 'Ta prochaine séance sera le premier pas de la semaine.' : 'Encore ' + (goal - completed) + ' séance(s) pour atteindre ton objectif.'}</Muted>
+      </Card>
+      <Muted>DEPUIS TES DÉBUTS</Muted>
       <View style={styles.statsRow}>
         <Stat value={`${data.logs.length}`} label="séances" accent />
         <Stat value={totalMin >= 60 ? `${Math.floor(totalMin / 60)}h${String(totalMin % 60).padStart(2, '0')}` : `${totalMin}`} label={totalMin >= 60 ? 'au total' : 'minutes'} />
@@ -56,6 +67,7 @@ export default function Progres() {
 
       <Card>
         <H2>Minutes par semaine</H2>
+        <Segmented label="Période du graphique" value={period} onChange={setPeriod} options={[{ value: '4', label: '4 sem.' }, { value: '8', label: '8 sem.' }, { value: '12', label: '12 sem.' }]} />
         <BarChart bars={minutesBars} label="Minutes d’entraînement par semaine" />
       </Card>
 

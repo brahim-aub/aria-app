@@ -179,7 +179,7 @@ function describeCatalog() {
     .join('\n');
 }
 
-export function buildSystemPrompt(d: AppData) {
+export function buildSystemPrompt(d: AppData, nutritionOnly = false) {
   const today = dateKey();
   const t = energyTargets(d);
   const lims = d.limitations.filter((l) => l.endDate >= today);
@@ -189,12 +189,12 @@ export function buildSystemPrompt(d: AppData) {
     .map((l) => `- ${l.date.slice(0, 10)} ${l.title}, ${l.durationMin} min, difficulté ${l.difficulty}/5, énergie ${l.energy}/5${l.note ? `, note : ${l.note}` : ''}`)
     .join('\n');
 
-  return `Tu es « Aria », le coach sportif et nutritionnel personnel intégré à l'app Aria Sport. Tu parles français, tu tutoies, tu es chaleureux, motivant et concret. Tes réponses sont courtes (2 à 6 phrases, listes à puces si utile), lisibles sur téléphone, avec 1 emoji maximum. Beaucoup d'utilisateurs débutent : explique simplement, sans jargon.
+  return `Tu es « Mova », le coach sportif et nutritionnel personnel intégré à l'app Mova. Tu parles français, tu tutoies, tu es chaleureux, motivant et concret. Tes réponses sont courtes (2 à 6 phrases, listes à puces si utile), lisibles sur téléphone, avec 1 emoji maximum. Beaucoup d'utilisateurs débutent : explique simplement, sans jargon.
 
 TON RÔLE : tu peux MODIFIER l'app directement via le champ "actions" (le planning, le profil, les douleurs, la nutrition). Quand l'utilisateur demande un changement, FAIS-LE avec les actions puis confirme en une phrase ce que tu as changé. Ne dis jamais que tu as modifié quelque chose sans l'action correspondante. Si la demande est ambiguë, pose UNE question courte et ne fais aucune action.
 
 CATALOGUE D'EXERCICES (id | nom | muscles | matériel requis | articulations sollicitées | mode reps/time | niveau)
-${describeCatalog()}
+${nutritionOnly ? 'Non transmis : demande nutritionnelle. Ne crée ni ne remplace de séance sans catalogue ; demande une précision si la demande change de sujet.' : describeCatalog()}
 
 ACTIONS DISPONIBLES
 - replace_session {date, session, reason} : remplace la séance d'un jour (ou en crée une un jour de repos). Utilise UNIQUEMENT des exerciseId du catalogue. Mode "reps" → renseigne reps ; mode "time" → renseigne seconds. restSec entre 15 et 180. session.warmup=true sauf si très peu de temps.
@@ -240,8 +240,8 @@ DOULEURS / LIMITATIONS ACTIVES
 ${lims.length ? lims.map((l) => `- id=${l.id} : ${BODY_PART_LABEL[l.bodyPart]} jusqu'au ${l.endDate} (${l.note})`).join('\n') : 'aucune'}
 (L'app remplace AUTOMATIQUEMENT tous les exercices qui sollicitent une zone douloureuse dans les séances concernées. Pour une douleur, utilise add_limitation : inutile de réécrire chaque séance.)
 
-PLANNING (de J-3 à J+13)
-${describeSchedule(d) || 'aucune séance'}
+PLANNING (${nutritionOnly ? "7 prochains jours, résumé" : "de J-3 à J+13"})
+${(nutritionOnly ? getRange(d, dateKey(), 7).map((day) => day.date + ': ' + (day.session ? day.session.title : 'repos')).join('\n') : describeSchedule(d)) || 'aucune séance'}
 
 DERNIÈRES SÉANCES
 ${recent || 'aucune pour le moment'}
@@ -269,9 +269,18 @@ function describeMealPlan(d: AppData) {
 
 // ───────── Appel ─────────
 
+/** Le doute conserve tout le contexte sportif ; les suivis courts gardent le contexte complet. */
+export function nutritionContextOnly(d: AppData, text: string) {
+  const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const current = norm(text);
+  const recent = norm(d.chat.filter((m) => m.role === 'user' && !m.error).slice(-3).map((m) => m.text).join(' '));
+  return /repas|menu|aliment|nutrition|recette|courses|proteine|calorie|magasin|budget/.test(current)
+    && !/seance|exercice|entrain|douleur|bless|materiel|muscle|squat|pompe|cardio|sport/.test(current + ' ' + recent);
+}
+
 export async function askCoach(d: AppData, ai: AiAuth, userText: string): Promise<CoachResponse> {
   const history: GeminiContent[] = d.chat
-    .filter((m) => !m.error && m.text.trim())
+    .filter((m) => !m.error && !m.pending && m.text.trim())
     .slice(-16)
     .map((m) => ({ role: m.role, parts: [{ text: m.text }] }));
   const lastTurn = history[history.length - 1];
@@ -282,7 +291,7 @@ export async function askCoach(d: AppData, ai: AiAuth, userText: string): Promis
   const res = await generateJSON<CoachResponse>({
     ...ai,
     kind: 'chat',
-    system: buildSystemPrompt(d),
+    system: buildSystemPrompt(d, nutritionContextOnly(d, userText)),
     contents: history,
     schema: COACH_SCHEMA,
     temperature: 0.6,
@@ -559,6 +568,7 @@ export async function generateMealPlan(d: AppData, ai: AiAuth, instructions = ''
   });
   const system = `Tu es un nutritionniste du sport bienveillant. Tu crées des plans de repas simples, réalistes, en français (tu tutoies l'utilisateur, y compris dans les conseils), avec des aliments trouvables en supermarché en France. Quantités en grammes ou en unités usuelles. Recettes en 1 à 2 phrases. Pour CHAQUE aliment, donne aussi : grams (poids réellement consommé, en g ou ml) et search (nom PRÉCIS du produit tel qu'il est vendu en rayon, sans marque ni quantité : « fromage blanc 0% », « pâtes complètes », « blanc de poulet », « lait demi-écrémé » — ce nom sert à chercher son prix en magasin). Ne donne aucun prix. Les kcal doivent être réalistes et la somme d'une journée proche de la cible (±5 %), un peu plus les jours d'entraînement et un peu moins les jours de repos.`;
   const user = `Crée mon plan de repas pour les 7 prochains jours (en commençant par ${formatKey(today, { weekday: 'long' })}).
+Version du plan remplacé : ${d.nutrition.plan?.createdAt ?? "premier plan"}.
 Profil : ${p.sex}, ${p.age} ans, ${p.heightCm} cm, ${p.weightKg} kg. Objectif : ${GOAL_LABEL[p.goal]}. Travail : ${JOB_LABEL[p.job]}.
 Cible moyenne : ${t.target} kcal/jour, protéines ${t.proteinG} g, glucides ${t.carbsG} g, lipides ${t.fatG} g.
 Semaine d'entraînement : ${days.join(' ; ')}.
@@ -597,6 +607,22 @@ Ajoute une liste de courses regroupée (max 30 lignes) et 3 à 5 conseils courts
  * Modifie le plan de repas existant sans le refaire : le modèle ne renvoie que les repas changés
  * (jour + position), le reste du plan est conservé tel quel.
  */
+export function shoppingList(days: MealPlan['days']): string[] {
+  // Même aliment : regrouper les unités identiques ; ne pas convertir arbitrairement pièces, g et ml.
+  const entries = new Map<string, { food: string; amounts: Map<string, number>; other: string[] }>();
+  for (const day of days) for (const meal of day.meals) for (const item of meal.items) {
+    const key = item.food.trim().toLocaleLowerCase('fr');
+    const entry = entries.get(key) ?? { food: item.food, amounts: new Map<string, number>(), other: [] };
+    const match = item.qty.trim().match(/^(\d+(?:[.,]\d+)?)\s*(.*)$/);
+    if (match) {
+      const unit = match[2].trim().toLocaleLowerCase('fr');
+      entry.amounts.set(unit, (entry.amounts.get(unit) ?? 0) + Number(match[1].replace(',', '.')));
+    } else if (item.qty.trim()) entry.other.push(item.qty.trim());
+    entries.set(key, entry);
+  }
+  return [...entries.values()].map((e) => e.food + ' · ' + [...e.amounts].map(([u, n]) => Number(n.toFixed(2)).toLocaleString('fr-FR') + (u ? ' ' + u : '')).concat(e.other).join(' + '));
+}
+
 export async function editMealPlan(d: AppData, ai: AiAuth, instruction: string): Promise<{ plan: MealPlan; changed: number }> {
   const plan = d.nutrition.plan;
   if (!plan) throw new Error('Il n’y a pas encore de plan de repas à modifier.');
@@ -610,8 +636,8 @@ ${listing}
 
 Régime : ${DIET_LABEL[prefs.diet]}. Je n'aime pas : ${prefs.dislikes || 'rien de spécial'}. Allergies : ${prefs.allergies || 'aucune'}.
 Modification demandée : ${instruction}
-Renvoie uniquement les repas modifiés (day = numéro de jour, meal = numéro du repas) et la liste de courses complète mise à jour.`;
-  const res = await generateJSON<{ edits: { day: number; meal: number; name: string; kcal: number; proteinG?: number; recipe?: string; items: MealItem[] }[]; groceries?: string[] }>({
+Renvoie uniquement les repas modifiés (day = numéro de jour, meal = numéro du repas). L’app recalcule la liste de courses.`;
+  const res = await generateJSON<{ edits: { day: number; meal: number; name: string; kcal: number; proteinG?: number; recipe?: string; items: MealItem[] }[] }>({
     ...ai,
     kind: 'meal',
     system,
@@ -635,7 +661,6 @@ Renvoie uniquement les repas modifiés (day = numéro de jour, meal = numéro du
             required: ['day', 'meal', 'name', 'kcal', 'items'],
           },
         },
-        groceries: { type: 'array', items: { type: 'string' } },
       },
       required: ['edits'],
     },
@@ -653,5 +678,5 @@ Renvoie uniquement les repas modifiés (day = numéro de jour, meal = numéro du
     changed++;
   }
   if (!changed) throw new Error('Je n’ai trouvé aucun repas à modifier.');
-  return { plan: { ...plan, createdAt: new Date().toISOString(), days, groceries: res.groceries?.length ? res.groceries : plan.groceries }, changed };
+  return { plan: { ...plan, createdAt: new Date().toISOString(), days, groceries: shoppingList(days) }, changed };
 }

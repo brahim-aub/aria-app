@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useActionSheet } from '@/components/ActionSheet';
-import { EmptyState, SectionHeader, Tag } from '@/components/kit';
+import { EmptyState, SectionHeader, Segmented, Tag } from '@/components/kit';
 import { Button, Chip, IconButton, Muted, Screen } from '@/components/ui';
 import { focusRing, PressState, pressFeedback } from '@/lib/motion';
 import { isAvailable, EXERCISES } from '@/data/exercises';
@@ -25,6 +25,7 @@ export default function Seances() {
   const sheet = useActionSheet();
   const [equip, setEquip] = useState<EquipFilter>('mine');
   const [level, setLevel] = useState<string>('all');
+  const [library, setLibrary] = useState<'ready' | 'custom'>('ready');
 
   const canDo = (s: WorkoutSession) => s.exercises.every((e) => EXERCISES[e.exerciseId] && isAvailable(EXERCISES[e.exerciseId], data.profile.equipment));
   const presets = PRESETS.filter((p) => (equip === 'all' ? true : equip === 'mine' ? canDo(p) : p.equipmentTag === equip)).filter((p) => level === 'all' || p.level === level);
@@ -38,7 +39,7 @@ export default function Seances() {
 
   const customMenu = (s: WorkoutSession) =>
     sheet.open(s.title, [
-      { label: 'Commencer', icon: 'play', color: colors.accentInk, onPress: () => router.push(`/seance/c-${s.id}`) },
+      { label: 'Voir les exercices', icon: 'play', color: colors.accentInk, onPress: () => router.push(`/seance/c-${s.id}`) },
       { label: 'Modifier', icon: 'create', onPress: () => router.push({ pathname: '/creer-seance', params: { id: s.id } }) },
       {
         label: 'Supprimer',
@@ -61,6 +62,9 @@ export default function Seances() {
         </View>
       )}
 
+      <Segmented label="Bibliothèque de séances" value={library} onChange={setLibrary} options={[{ value: 'ready', label: 'Séances prêtes' }, { value: 'custom', label: 'Mes séances' }]} />
+      <Muted>{date ? 'La séance choisie remplacera celle de ce jour.' : 'Ouvre une séance pour découvrir ses exercices avant de la commencer.'}</Muted>
+      {library === 'custom' ? <>
       <SectionHeader title="Mes séances" action="Créer" onAction={() => router.push({ pathname: '/creer-seance', params: date ? { date } : {} })} />
       {data.customSessions.length === 0 ? (
         <View style={styles.emptyBox}>
@@ -72,10 +76,11 @@ export default function Seances() {
         data.customSessions.map((s) => <SessionCard key={s.id} s={s} onPress={() => choose(s, 'c')} onMore={() => customMenu(s)} badge="Perso" />)
       )}
 
+      </> : <>
       <SectionHeader title="Séances prêtes" />
       <Text style={styles.filterLabel}>Matériel</Text>
       <View style={styles.chips}>
-        <Chip label="Pour moi" active={equip === 'mine'} onPress={() => setEquip('mine')} />
+        <Chip label="Mon matériel" active={equip === 'mine'} onPress={() => setEquip('mine')} />
         <Chip label="Toutes" active={equip === 'all'} onPress={() => setEquip('all')} />
         {(Object.keys(EQUIPMENT_TAG_LABEL) as (keyof typeof EQUIPMENT_TAG_LABEL)[]).map((k) => (
           <Chip key={k} label={EQUIPMENT_TAG_LABEL[k]} active={equip === k} onPress={() => setEquip(k)} />
@@ -88,10 +93,12 @@ export default function Seances() {
           <Chip key={k} label={v} active={level === k} onPress={() => setLevel(k)} />
         ))}
       </View>
-      {presets.length === 0 && <Muted>Aucune séance ne correspond à ces filtres. Essaie « Toutes » ou un autre niveau.</Muted>}
+      <Muted>{presets.length} séance(s) disponible(s) · {equip === 'mine' ? 'Avec ton matériel' : 'Selon tes filtres'}</Muted>
+      {presets.length === 0 && <EmptyState icon="search-outline" title="Aucune séance trouvée" text="Élargis les filtres pour découvrir les autres séances."><Button title="Afficher toutes les séances" variant="secondary" onPress={() => { setEquip('all'); setLevel('all'); }} /></EmptyState>}
       {presets.map((p) => (
         <SessionCard key={p.id} s={p} onPress={() => choose(p, 'p')} badge={LEVEL_LABEL[p.level]} extra={EQUIPMENT_TAG_LABEL[p.equipmentTag]} />
       ))}
+      </>}
     </Screen>
   );
 }
@@ -108,14 +115,14 @@ function SessionCard({ s, onPress, onMore, badge, extra }: { s: WorkoutSession; 
     >
       <View style={{ flex: 1, gap: 4 }}>
         <View style={[styles.rowBetween, onMore && { paddingRight: 40 }]}>
-          <Text style={styles.title} numberOfLines={1}>
+          <Text style={styles.title} numberOfLines={2}>
             {s.title}
           </Text>
-          <Text style={styles.min}>{estimateMinutes(s)} min</Text>
+          <View style={styles.duration}><Ionicons name="time-outline" size={15} color={colors.accent} /><Text style={styles.min}>{estimateMinutes(s)} min</Text></View>
         </View>
         {s.focus ? <Text style={styles.focus}>{s.focus}</Text> : null}
         <Text style={styles.summary} numberOfLines={2}>
-          {sessionSummary(s)}
+          {s.exercises.length} exercices · {sessionSummary(s)}
         </Text>
         <View style={styles.tags}>
           {badge && <Tag label={badge} color={colors.text} />}
@@ -142,9 +149,10 @@ const styles = StyleSheet.create({
   cardWrap: { position: 'relative' },
   more: { position: 'absolute', top: spacing.xs, right: spacing.xs },
   card: { flexDirection: 'row', gap: spacing.md, backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, overflow: 'hidden' },
-  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
+  rowBetween: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.sm },
   title: { color: colors.text, fontFamily: font.black, fontSize: 16, flex: 1 },
-  min: { color: colors.text, fontFamily: font.black, fontVariant: ['tabular-nums'] },
+  duration: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: colors.accentDim, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 8, flexShrink: 0 },
+  min: { color: colors.accent, fontFamily: font.black, fontVariant: ['tabular-nums'] },
   focus: { color: colors.text, ...type.small },
   summary: { color: colors.muted, ...type.small },
   tags: { flexDirection: 'row', gap: spacing.xs, flexWrap: 'wrap', marginTop: 2 },

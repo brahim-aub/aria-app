@@ -9,18 +9,32 @@ const compiled = ts.transpileModule(source, { compilerOptions: {
   module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022,
 } }).outputText;
 
-function server({ authenticated = true, upstream } = {}) {
+function server({ authenticated = true, upstream, optimizations = false, claimState = null, lockError = false } = {}) {
   let handler;
   const requests = [];
   const rpcs = [];
+  const locks = new Map();
+  const usage = [];
   const admin = {
-    auth: { getUser: async () => ({ data: { user: authenticated ? { id: 'test', email: 'test@example.invalid' } : null } }) },
-    from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null }) }) }) }),
-    rpc: async (name, args) => { rpcs.push({ name, args }); return { data: true, error: null }; },
+    auth: { getUser: async (jwt) => ({ data: { user: authenticated ? { id: jwt === 'second-user' ? 'other-test' : 'test', email: 'test@example.invalid' } : null } }) },
+    from: () => ({ insert: async (entry) => { usage.push(entry); return { error: null }; }, select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: optimizations ? { value: { optimizations_enabled: true } } : null }) }) }) }),
+    rpc: async (name, args) => {
+      rpcs.push({ name, args });
+      if (name === 'ai_claim_request') {
+        if (lockError) return { error: { message: 'database unavailable' } };
+        if (claimState) return { data: claimState };
+        const key = args.p_user + args.p_hash;
+        if (locks.has(key)) return { data: locks.get(key) };
+        locks.set(key, { state: 'pending' });
+        return { data: { state: 'acquired' } };
+      }
+      if (name === 'ai_finish_request') locks.set(args.p_user + args.p_hash, { state: 'complete', text: args.p_text, status: args.p_status });
+      return { data: true, error: null };
+    },
   };
   const module = { exports: {} };
   vm.runInNewContext('(function(require,module,exports){' + compiled + '\n})', {
-    Request, Response, ReadableStream, TextDecoder,
+    Request, Response, ReadableStream, TextDecoder, TextEncoder, AbortSignal, crypto: require('node:crypto').webcrypto,
     Deno: {
       env: { get: (name) => ({ SUPABASE_URL: 'https://test.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'test-secret', GEMINI_API_KEY: 'test-google' })[name] },
       serve: (callback) => { handler = callback; },
@@ -36,7 +50,7 @@ function server({ authenticated = true, upstream } = {}) {
     assert.equal(id, 'npm:@supabase/supabase-js@2');
     return { createClient: () => admin };
   }, module, module.exports);
-  return { handler, requests, rpcs };
+  return { handler, requests, rpcs, usage };
 }
 const payload = (kind = 'chat', config = {}) => ({
   kind, model: 'gemini-3.8-flash',
@@ -175,3 +189,45 @@ test('authentification et prévol CORS restent opérationnels', async () => {
   assert.equal((await s.handler(new Request('https://test.invalid', { method: 'OPTIONS' }))).status, 200);
 });
 
+
+
+test('deux appels identiques en cours : une seule génération et une seule prise de quota', async () => {
+  let release; let entered;
+  const started = new Promise(r => { entered = r; });
+  const wait = new Promise(r => { release = r; });
+  const s = server({ optimizations: true, upstream: async () => { entered(); await wait; return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: '{}' }] } }], usageMetadata: { promptTokenCount: 100, cachedContentTokenCount: 60, thoughtsTokenCount: 5, candidatesTokenCount: 10 } })); } });
+  const first = s.handler(request(payload())); await started;
+  const duplicate = await s.handler(request(payload()));
+  assert.equal(duplicate.status, 409); assert.equal((await duplicate.json()).error.code, 'REQUEST_PENDING');
+  release(); assert.equal((await first).status, 200);
+  const replay = await s.handler(request(payload()));
+  assert.equal(replay.status, 200); assert.equal(replay.headers.get('x-ai-replayed'), '1');
+  assert.equal(s.requests.length, 1); assert.equal(s.rpcs.filter(r => r.name === 'ai_take_quota').length, 1);
+  assert.equal(s.usage[0].tokens_cached, 60); assert.equal(s.usage[0].tokens_thinking, 5); assert.equal(s.usage[0].tokens_out, 15);
+});
+test('un verrou indisponible ne déclenche aucun appel payant', async () => {
+  const s = server({ optimizations: true, lockError: true });
+  const result = await s.handler(request(payload()));
+  assert.equal(result.status, 503); assert.equal(s.requests.length, 0);
+});
+test('les recherches sont comptées par requête, et non comme un booléen', async () => {
+  const s = server({ optimizations: true, upstream: () => new Response(JSON.stringify({ candidates: [{ groundingMetadata: { webSearchQueries: ['riz', 'lait', 'oeufs'] }, content: { parts: [{ text: '{}' }] } }] })) });
+  await s.handler(request(payload('prices')));
+  assert.equal(s.rpcs.find(r => r.name === 'ai_add_usage').args.p_searches, 3);
+  assert.equal(s.usage[0].search_queries, 3);
+});
+test('un échec amont est mémorisé brièvement sans nouvelle génération ni nouveau quota', async () => {
+  const s = server({ optimizations: true, upstream: () => new Response('{"error":{"message":"unavailable"}}', { status: 503 }) });
+  assert.equal((await s.handler(request(payload()))).status, 503);
+  assert.equal((await s.handler(request(payload()))).status, 503);
+  assert.equal(s.requests.length, 1);
+});
+
+
+test('deux comptes ne reçoivent jamais la réponse personnalisée de l’autre', async () => {
+  const s = server({ optimizations: true });
+  assert.equal((await s.handler(request(payload()))).status, 200);
+  const other = await s.handler(request(payload(), { Authorization: 'Bearer second-user' }));
+  assert.equal(other.status, 200); assert.equal(other.headers.get('x-ai-replayed'), null);
+  assert.equal(s.requests.length, 2);
+});

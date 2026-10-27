@@ -6,6 +6,7 @@ import type { MealItem, MealPlan, PriceCheck, StoreItemPrice, StorePrices } from
 
 import { AiAuth, generateJSONWithSearch } from './gemini';
 import { readPriceCache, writePriceCache } from './priceCache';
+import { productPageUrl } from './productUrl';
 
 export const STORES = [
   'E.Leclerc',
@@ -144,10 +145,10 @@ const SCHEMA = {
 
 function clean(raw: Partial<StoreItemPrice>, ids: Set<string>): StoreItemPrice | undefined {
   const id = String(raw.id ?? '').trim();
-  const url = String(raw.url ?? '').trim();
+  const url = productPageUrl(raw.url);
   const packPrice = Number(raw.packPrice);
   const packGrams = Number(raw.packGrams);
-  if (!ids.has(id) || !/^https?:\/\/\S+\.\S+/.test(url) || !(packPrice > 0) || !(packGrams > 0)) return undefined;
+  if (!ids.has(id) || !url || !(packPrice > 0) || !(packGrams > 0)) return undefined;
   const pricePerKg = Number(raw.pricePerKg) > 0 ? Number(raw.pricePerKg) : packPrice / (packGrams / 1000);
   // Fourchette des variantes (ex. riz basmati de 2,58 à 3,65 €/kg) : gardée seulement si elle encadre le prix retenu.
   const min = Number(raw.minPerKg);
@@ -156,14 +157,26 @@ function clean(raw: Partial<StoreItemPrice>, ids: Set<string>): StoreItemPrice |
   return { id, url, packPrice, packGrams, pricePerKg, ...range, product: String(raw.product ?? '').slice(0, 120), packSize: String(raw.packSize ?? '').slice(0, 40) };
 }
 
-async function searchStore(store: string, all: { id: string; name: string; grams: number }[], ai: AiAuth) {
+async function searchStore(store: string, all: { id: string; name: string; grams: number }[], ai: AiAuth, previous?: PriceCheck) {
   // 1. Prix déjà relevés cette semaine (par n'importe quel utilisateur) : pas de nouvelle recherche.
   // Prix trouvés il y a moins de 7 jours, ou produit introuvable chez ce magasin il y a moins de 3 jours.
   const shop = storeKey(store);
   const cache = await readPriceCache(shop, [...new Set(all.map((i) => productKey(i.name)))]);
+  // Le relevé du téléphone reste utile après une édition et lorsque le cache partagé est indisponible.
+  const oldStore = previous?.stores.find((s) => storeKey(s.store) === shop);
+  for (const old of oldStore?.items ?? []) {
+    const ingredient = previous?.ingredients.find((i) => i.id === old.id);
+    const at = Date.parse(old.foundAt ?? previous?.searchedAt ?? '');
+    if (ingredient && at <= Date.now() && at > Date.now() - 7 * 86400000 && productPageUrl(old.url)) {
+      const key = productKey(ingredient.name);
+      const shared = cache.get(key);
+      if (!shared || shared === 'missing' || Date.parse(shared.foundAt ?? '') < at) cache.set(key, { ...old, foundAt: new Date(at).toISOString() });
+    }
+  }
   const cached: StoreItemPrice[] = [];
   const ingredients = all.filter((i) => {
-    const hit = cache.get(productKey(i.name));
+    const entry = cache.get(productKey(i.name));
+    const hit = entry && entry !== 'missing' && !productPageUrl(entry.url) ? undefined : entry;
     if (hit && hit !== 'missing') cached.push({ ...hit, id: i.id });
     return !hit;
   });
@@ -207,6 +220,7 @@ async function searchBatch(store: string, shop: string, ingredients: { id: strin
     system: `Tu es un assistant de courses. Tu donnes les prix actuels de l'enseigne « ${store} » en France, en cherchant sur internet (Google) si possible : site drive ou site officiel de l'enseigne, ou comparateur de prix fiable qui cite ce magasin.
 Règles strictes :
 - Donne le prix habituel d'un produit réellement vendu chez ${store}, jamais un prix au hasard. Indique dans "url" la page du produit (ou à défaut la page du rayon) chez ${store}.
+- Recopie les URL des sources sans les inventer ni modifier leur domaine. Pour Carrefour France, utilise uniquement carrefour.fr. Si aucune adresse fiable n’est disponible, omets le produit.
 - Si tu ne connais pas de prix fiable pour un ingrédient chez ${store}, ne l'inclus pas.
 - Pour chaque ingrédient, choisis le produit le plus proche de la demande au meilleur prix (la marque distributeur est acceptée).
 - S'il existe plusieurs variantes (ex. riz basmati premier prix ou supérieur), donne aussi la fourchette de prix au kilo des variantes vues (minPerKg, maxPerKg).
@@ -235,11 +249,11 @@ Règles strictes :
 }
 
 /** Cherche les prix réels du plan dans chaque magasin choisi (une recherche par magasin, en parallèle). */
-export async function searchPrices(plan: MealPlan, stores: string[], ai: AiAuth, onStoreDone?: (store: string) => void): Promise<PriceCheck> {
+export async function searchPrices(plan: MealPlan, stores: string[], ai: AiAuth, onStoreDone?: (store: string) => void, previous?: PriceCheck): Promise<PriceCheck> {
   const ingredients = ingredientsOf(plan);
   const results = await Promise.allSettled(
     stores.slice(0, MAX_STORES).map(async (s) => {
-      const r = await searchStore(s, ingredients, ai);
+      const r = await searchStore(s, ingredients, ai, previous);
       onStoreDone?.(s);
       return r;
     }),

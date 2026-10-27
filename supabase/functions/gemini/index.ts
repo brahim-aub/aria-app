@@ -123,6 +123,7 @@ const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Expose-Headers': 'x-ai-replayed',
 };
 
 const reply = (status: number, body: unknown) =>
@@ -178,9 +179,24 @@ Deno.serve(async (req) => {
 
   // 3. Interrupteurs et quotas (table app_config, clé « ai »).
   const { data: cfgRow } = await admin.from('app_config').select('value').eq('key', 'ai').maybeSingle();
-  const cfg = (cfgRow?.value ?? {}) as { enabled?: boolean; prices_enabled?: boolean; daily_limits?: Record<string, number>; admin_emails?: string[] };
+  const cfg = (cfgRow?.value ?? {}) as { enabled?: boolean; prices_enabled?: boolean; daily_limits?: Record<string, number>; admin_emails?: string[]; optimizations_enabled?: boolean };
   if (cfg.enabled === false) return fail(503, 'Le coach est en pause pour maintenance. Réessaie plus tard.', 'DISABLED');
   if (kind === 'prices' && cfg.prices_enabled === false) return fail(503, 'La recherche de prix est momentanément désactivée.', 'DISABLED');
+  // Clé dérivée du corps validé ; aucune donnée de conversation n'est stockée dans l'empreinte.
+  // Utilisateur inclus dans la clé SQL : aucune réponse personnalisée n'est partagée entre comptes.
+  let fingerprint = '';
+  const owner = cfg.optimizations_enabled ? crypto.randomUUID() : '';
+  if (cfg.optimizations_enabled) {
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify([model, kind, body])));
+    fingerprint = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+    const claim = await admin.rpc('ai_claim_request', { p_user: user.id, p_hash: fingerprint, p_owner: owner });
+    // Pas d'appel payant si le verrou partagé est indisponible.
+    if (claim.error) return fail(503, 'Le coach est momentanément indisponible. Réessaie dans un instant.', 'LOCK_UNAVAILABLE');
+    if (claim.data?.state === 'complete') return new Response(claim.data.text, { status: claim.data.status, headers: { ...cors, 'Content-Type': 'application/json', 'x-ai-replayed': '1' } });
+    if (claim.data?.state !== 'acquired') return fail(409, 'Cette demande est déjà en cours.', 'REQUEST_PENDING');
+  }
+  const started = Date.now();
+  const perform = async (): Promise<Response> => {
   // Comptes admin (cle admin_emails dans app_config) : pas de quota, pour tester sans limite.
   const isAdmin = !!user.email && (cfg.admin_emails ?? []).some((e) => e.toLowerCase() === user.email!.toLowerCase());
   const limit = isAdmin ? 1_000_000 : cfg.daily_limits?.[kind] ?? DEFAULT_LIMITS[kind];
@@ -193,6 +209,7 @@ Deno.serve(async (req) => {
   if (!key) return fail(503, 'Le coach n’est pas encore configuré sur le serveur (clé Gemini manquante).', 'NO_KEY');
   const res = await fetch(`${GEMINI}/${model}:generateContent`, {
     method: 'POST',
+    signal: AbortSignal.timeout(120000),
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
     body: JSON.stringify(body),
   });
@@ -209,11 +226,22 @@ Deno.serve(async (req) => {
 
   // 5. Consommation réelle (tokens et recherches Google).
   let outputLimited = false;
+  let usageMetadata: Record<string, unknown> | undefined;
   try {
     const json = JSON.parse(text);
     outputLimited = res.ok && (json?.candidates ?? []).some((candidate: { finishReason?: string }) => candidate.finishReason === 'MAX_TOKENS');
     const u = json?.usageMetadata ?? {};
-    const searches = json?.candidates?.[0]?.groundingMetadata?.webSearchQueries?.length ? 1 : 0;
+    usageMetadata = json?.usageMetadata;
+    const searches = json?.candidates?.[0]?.groundingMetadata?.webSearchQueries?.length ?? 0;
+    if (cfg.optimizations_enabled) {
+      const logged = await admin.from('ai_call_usage').insert({
+        user_id: user.id, kind, model, tokens_in: u.promptTokenCount ?? 0,
+        tokens_cached: u.cachedContentTokenCount ?? 0, tokens_out: (u.candidatesTokenCount ?? 0) + (u.thoughtsTokenCount ?? 0),
+        tokens_thinking: u.thoughtsTokenCount ?? 0, search_queries: searches,
+        duration_ms: Date.now() - started, finish_reason: json?.candidates?.[0]?.finishReason ?? null, upstream_status: res.status,
+      });
+      if (logged.error) console.error('ai_usage_record_failed');
+    }
     await admin.rpc('ai_add_usage', {
       p_user: user.id,
       p_kind: kind,
@@ -226,8 +254,18 @@ Deno.serve(async (req) => {
   }
 
   // Une réponse tronquée n'est pas renvoyée comme un JSON valide ni relancée sur d'autres modèles.
-  if (outputLimited) return fail(502, 'La réponse atteint la longueur maximale autorisée. Essaie une demande plus ciblée.', 'OUTPUT_LIMIT');
+  if (outputLimited) return reply(502, { error: { message: 'La réponse atteint la longueur maximale autorisée. Essaie une demande plus ciblée.', code: 'OUTPUT_LIMIT' }, usageMetadata });
 
   // Réponse de Google transmise telle quelle (elle ne contient jamais la clé).
   return new Response(text, { status: res.status, headers: { ...cors, 'Content-Type': 'application/json' } });
+  };
+  let result: Response;
+  try { result = await perform(); }
+  catch { result = fail(502, 'Le coach n’a pas pu terminer cette demande. Réessaie dans quelques instants.', 'UPSTREAM_ERROR'); }
+  if (fingerprint) {
+    // Conserver aussi les erreurs brièvement empêche une rafale de relances facturées.
+    const finished = await admin.rpc('ai_finish_request', { p_user: user.id, p_hash: fingerprint, p_owner: owner, p_status: result.status, p_text: await result.clone().text() });
+    if (finished.error) console.error('ai_request_finish_failed');
+  }
+  return result;
 });

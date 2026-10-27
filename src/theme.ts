@@ -1,40 +1,35 @@
-/**
- * Système de design « carnet d'entraînement » (voir DESIGN.md).
- * Papier clair, encre ardoise #192126, un surligneur citron #BBF246 réservé
- * à ce qui fait avancer : action principale, progression, séance faite.
- * Les teintes de signal sont foncées pour rester lisibles (≥ 4,5:1 sur blanc).
- */
+/** Mova : charbon, surfaces olive, citron pour agir, lavande pour le coach. Voir DESIGN.md. */
 export const colors = {
-  bg: '#F4F5F2',
-  card: '#FFFFFF',
-  cardAlt: '#ECEEEA',
-  border: '#DFE2DD',
-  borderStrong: '#C9CEC8',
-  text: '#192126',
-  muted: '#5B6267',
+  bg: '#0C100D',
+  card: '#171D18',
+  cardAlt: '#222A22',
+  border: '#29332B',
+  borderStrong: '#414D41',
+  text: '#F3F5EF',
+  muted: '#A4AFA2',
   /** Vert citron : fonds, pastilles, barres. Jamais en texte sur fond clair. */
-  accent: '#BBF246',
-  accentDim: 'rgba(187, 242, 70, 0.32)',
-  /** Vert foncé lisible sur fond clair (texte, icônes, liens). */
-  accentInk: '#4A7300',
-  dark: '#192126',
-  darkAlt: '#2A343A',
+  accent: '#CBF45C',
+  accentDim: 'rgba(203, 244, 92, 0.13)',
+  /** Citron lisible sur les surfaces sombres (texte, icônes, liens). */
+  accentInk: '#CBF45C',
+  dark: '#1D2719',
+  darkAlt: '#34412A',
   /** Texte secondaire sur fond encre. */
-  onDarkMuted: '#AEB6BA',
-  violet: '#6447D1',
-  violetDim: 'rgba(100, 71, 209, 0.10)',
-  cyan: '#1F6F94',
+  onDarkMuted: '#B6C0AE',
+  violet: '#C4AEF5',
+  violetDim: 'rgba(196, 174, 245, 0.11)',
+  cyan: '#9ECFC7',
   cyanDim: 'rgba(31, 111, 148, 0.10)',
-  pink: '#C62F2F',
+  pink: '#F3B29C',
   pinkDim: 'rgba(198, 47, 47, 0.10)',
-  yellow: '#8F6200',
+  yellow: '#E4CD8D',
   yellowDim: 'rgba(214, 155, 30, 0.16)',
-  rest: '#B5530F',
+  rest: '#F4B381',
   restDim: 'rgba(181, 83, 15, 0.10)',
-  danger: '#C62F2F',
-  onAccent: '#192126',
+  danger: '#FFAAA2',
+  onAccent: '#142008',
   onDark: '#FFFFFF',
-  focus: '#192126',
+  focus: '#CBF45C',
 };
 
 /** Couleur d'icône par famille (repère discret, jamais un fond plein). */
@@ -49,11 +44,11 @@ export const palette = {
 
 /** Fonds très légers pour signaler un état (zone ménagée, info…), pas pour décorer. */
 export const tints = {
-  violet: '#EEEAFB',
-  red: '#FBE9E9',
-  orange: '#FBEFE4',
-  blue: '#E6F0F5',
-  lime: '#EEF8D6',
+  violet: '#2D2639',
+  red: '#352421',
+  orange: '#30271E',
+  blue: '#1F3030',
+  lime: '#27331D',
 };
 
 /** Lato (chargée dans app/_layout.tsx). */
@@ -74,7 +69,7 @@ export const type = {
   micro: { fontFamily: font.bold, fontSize: 12, lineHeight: 16 },
 } as const;
 
-export const radius = { sm: 10, md: 16, lg: 24, pill: 999 };
+export const radius = { sm: 12, md: 20, lg: 28, pill: 999 };
 
 export const spacing = { xs: 4, sm: 8, ms: 12, md: 16, lg: 24, xl: 32, xxl: 48 };
 
@@ -104,5 +99,5 @@ export function readableOn(bg: string): string {
   };
   const L = 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
   // Contraste avec le blanc contre contraste avec l'encre (#192126, L ≈ 0.014).
-  return (1.05 / (L + 0.05)) >= (L + 0.05) / 0.064 ? colors.onDark : colors.text;
+  return (1.05 / (L + 0.05)) >= (L + 0.05) / 0.064 ? colors.onDark : colors.onAccent;
 }

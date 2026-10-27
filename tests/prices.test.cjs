@@ -10,7 +10,7 @@ const code = ts.transpileModule(fs.readFileSync(path.join(__dirname, '../src/lib
   { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
 const loaded = { exports: {} };
 vm.runInNewContext('(function(require,module,exports){' + code + '\n})')(
-  (id) => { if (id !== './gemini' && id !== './priceCache') throw new Error('Unexpected import: ' + id); return {}; },
+  (id) => { if (id === './productUrl') return { productPageUrl: () => undefined }; if (id !== './gemini' && id !== './priceCache') throw new Error('Unexpected import: ' + id); return {}; },
   loaded, loaded.exports);
 const { itemGrams, ingredientsOf, storeTotals } = loaded.exports;
 const item = (qty, extra = {}) => ({ food: 'Riz', qty, kcal: 0, ...extra });

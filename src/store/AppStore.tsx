@@ -210,7 +210,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
           tokensIn: k.tokensIn + u.tokensIn,
           tokensCached: k.tokensCached + u.tokensCached,
           tokensOut: k.tokensOut + u.tokensOut,
-          searches: k.searches + (u.searched ? 1 : 0),
+          searches: k.searches + u.searchQueries,
+          usageVersion: 2 as const,
+          legacyEstimate: k.legacyEstimate || (k.calls > 0 && k.usageVersion !== 2),
           costUsd: k.costUsd + costOf(u),
         };
         return { ...d, aiUsage: { month, kinds: { ...cur.kinds, [u.kind]: next } } };
@@ -426,7 +428,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     searching.current = true;
     setPriceSearch({ stores, done: [] });
     try {
-      const check = await searchPrices(plan, stores, aiAuth(d0), (store) => setPriceSearch((p) => (p ? { ...p, done: [...p.done, store] } : p)));
+      const check = await searchPrices(plan, stores, aiAuth(d0), (store) => setPriceSearch((p) => (p ? { ...p, done: [...p.done, store] } : p)), d0.nutrition.priceCheck);
       // Par défaut, on affiche le coût des repas dans le magasin le moins cher.
       check.selectedStore = storeTotals(check)[0]?.store;
       setData((d) => ({ ...d, nutrition: { ...d.nutrition, priceCheck: check } }));

@@ -4,6 +4,7 @@
  * - Clé personnelle (Réglages) ou mode local : appel direct à Google.
  * Les modèles sont essayés dans l'ordre : si l'un est saturé ou trop lent, on passe au suivant.
  */
+import { singleFlight } from './singleFlight';
 import { supabase } from './supabase';
 
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -53,7 +54,7 @@ type Raw = { text: string; queries: string[]; sources: WebSource[] };
 
 // ───────── Mesure de la consommation ─────────
 
-export type AiUsageEvent = { kind: AiKind; model: string; tokensIn: number; tokensCached: number; tokensOut: number; searched: boolean };
+export type AiUsageEvent = { kind: AiKind; model: string; tokensIn: number; tokensCached: number; tokensOut: number; searched: boolean; searchQueries: number };
 let usageListener: ((u: AiUsageEvent) => void) | undefined;
 /** Branché par le store : chaque appel réussi y est compté. */
 export function setUsageListener(fn: ((u: AiUsageEvent) => void) | undefined) {
@@ -64,17 +65,21 @@ export function setUsageListener(fn: ((u: AiUsageEvent) => void) | undefined) {
  * Tarifs de référence en dollars par million de tokens (entrée, sortie), relevés pour l'étude CFO.
  * Les modèles sans tarif relevé sont comptés au prix de Flash (estimation haute).
  */
-export const MODEL_PRICES: Record<string, { in: number; out: number }> = {
-  'gemini-3.8-flash': { in: 1.5, out: 7.5 },
-  'gemini-3.5-flash-lite': { in: 0.3, out: 2.5 },
+/** Tarifs Standard USD / million, vérifiés le 27/10/2026 (Google). Alias : estimation Flash. */
+export const MODEL_PRICES: Record<string, { in: number; cached: number; out: number }> = {
+  'gemini-3.8-flash': { in: 0.75, cached: 0.075, out: 3.75 },
+  'gemini-3.7-flash': { in: 0.75, cached: 0.075, out: 3.75 },
+  'gemini-3.5-flash-lite': { in: 0.3, cached: 0.03, out: 2.5 },
 };
 export const FLASH_PRICE = MODEL_PRICES['gemini-3.8-flash'];
-/** Recherche Google : gratuite jusqu'à 5 000 requêtes par mois, puis 14 $ les 1 000. */
 export const SEARCH_PRICE = 0.014;
 
-export function costOf(u: Pick<AiUsageEvent, 'model' | 'tokensIn' | 'tokensOut'>) {
-  const p = MODEL_PRICES[u.model] ?? FLASH_PRICE;
-  return (u.tokensIn * p.in + u.tokensOut * p.out) / 1_000_000;
+export function costOf(u: Pick<AiUsageEvent, 'model' | 'tokensIn' | 'tokensOut'> & { tokensCached?: number }, at = new Date()) {
+  const base = MODEL_PRICES[u.model] ?? FLASH_PRICE;
+  // Fin du tarif promotionnel Flash le 01/01/2027. Lite inchangé.
+  const multiplier = u.model !== 'gemini-3.5-flash-lite' && at >= new Date('2027-01-01T00:00:00Z') ? 2 : 1;
+  const cached = Math.max(0, Math.min(u.tokensIn, u.tokensCached ?? 0));
+  return ((u.tokensIn - cached) * base.in * multiplier + cached * base.cached * multiplier + u.tokensOut * base.out * multiplier) / 1_000_000;
 }
 
 // ───────── Transport ─────────
@@ -82,13 +87,14 @@ export function costOf(u: Pick<AiUsageEvent, 'model' | 'tokensIn' | 'tokensOut'>
 /** Recherche Google refusée (quota ou facturation non activée). */
 const NO_SEARCH = 'NO_SEARCH';
 
-type Transport = { url: (model: string) => string; headers: Record<string, string>; wrap: (model: string, body: object) => object };
+type Transport = { scope: string; url: (model: string) => string; headers: Record<string, string>; wrap: (model: string, body: object) => object };
 
 async function transport(opts: Options): Promise<Transport> {
   const session = supabase && !opts.personalKey ? (await supabase.auth.getSession()).data.session : null;
   if (supabase && session) {
     const base = process.env.EXPO_PUBLIC_SUPABASE_URL;
     return {
+      scope: 'account:' + session.user.id,
       url: () => `${base}/functions/v1/gemini`,
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}`, apikey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '' },
       wrap: (model, body) => ({ model, kind: opts.kind, body }),
@@ -96,6 +102,7 @@ async function transport(opts: Options): Promise<Transport> {
   }
   if (!opts.apiKey) throw new GeminiError('Aucune clé API Gemini configurée. Connecte-toi à ton compte ou ajoute une clé dans Profil → Réglages.', false);
   return {
+    scope: 'personal:' + opts.apiKey,
     url: (model) => `${ENDPOINT}/${model}:generateContent`,
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': opts.apiKey },
     wrap: (_model, body) => body,
@@ -123,8 +130,27 @@ async function callModel(t: Transport, model: string, opts: Options, withThinkin
         ...(withThinking && !tools ? { thinkingConfig: { thinkingLevel: 'low' } } : {}),
       },
     };
-    const res = await fetch(t.url(model), { method: 'POST', signal: controller.signal, headers: t.headers, body: JSON.stringify(t.wrap(model, body)) });
-    const json = await res.json().catch(() => ({}));
+    let res: Response;
+    let json;
+    do {
+      res = await fetch(t.url(model), { method: 'POST', signal: controller.signal, headers: t.headers, body: JSON.stringify(t.wrap(model, body)) });
+      json = await res.json().catch(() => ({}));
+      if (json?.error?.code !== 'REQUEST_PENDING') break;
+      await new Promise<void>((resolve) => setTimeout(resolve, 1500));
+    } while (!controller.signal.aborted);
+    if (controller.signal.aborted) throw new GeminiError('Ta demande est encore en cours. Réessaie dans quelques instants.', false);
+    const meta = json?.candidates?.[0]?.groundingMetadata;
+    const queries: string[] = meta?.webSearchQueries ?? [];
+    const u = json?.usageMetadata ?? {};
+    if (json?.usageMetadata && res.headers.get('x-ai-replayed') !== '1') usageListener?.({
+      kind: opts.kind,
+      model,
+      tokensIn: u.promptTokenCount ?? 0,
+      tokensCached: u.cachedContentTokenCount ?? 0,
+      tokensOut: (u.candidatesTokenCount ?? 0) + (u.thoughtsTokenCount ?? 0),
+      searched: queries.length > 0,
+      searchQueries: queries.length,
+    });
     if (!res.ok) {
       const msg: string = json?.error?.message ?? `HTTP ${res.status}`;
       // Erreurs du relais (code texte) : quota, pause, connexion… inutile d'essayer un autre modèle.
@@ -141,18 +167,8 @@ async function callModel(t: Transport, model: string, opts: Options, withThinkin
       .filter((p) => !p.thought && p.text)
       .map((p) => p.text)
       .join('');
+
     if (!text) throw new GeminiError('Réponse vide', true);
-    const meta = candidate?.groundingMetadata;
-    const queries: string[] = meta?.webSearchQueries ?? [];
-    const u = json?.usageMetadata ?? {};
-    usageListener?.({
-      kind: opts.kind,
-      model,
-      tokensIn: u.promptTokenCount ?? 0,
-      tokensCached: u.cachedContentTokenCount ?? 0,
-      tokensOut: (u.candidatesTokenCount ?? 0) + (u.thoughtsTokenCount ?? 0),
-      searched: queries.length > 0,
-    });
     const sources: WebSource[] = (meta?.groundingChunks ?? [])
       .map((c: { web?: { uri?: string; title?: string } }) => c.web)
       .filter((w: { uri?: string } | undefined): w is { uri: string; title?: string } => !!w?.uri)
@@ -160,7 +176,7 @@ async function callModel(t: Transport, model: string, opts: Options, withThinkin
     return { text, queries, sources };
   } catch (e) {
     if (e instanceof GeminiError) throw e;
-    if ((e as Error)?.name === 'AbortError') throw new GeminiError('Délai dépassé', true);
+    if ((e as Error)?.name === 'AbortError') throw new GeminiError('La réponse prend plus de temps que prévu. Réessaie dans quelques instants.', false);
     throw new GeminiError('Pas de connexion internet ?', true);
   } finally {
     clearTimeout(timer);
@@ -180,9 +196,14 @@ function parseJson<T>(text: string): T {
   }
 }
 
+const inFlight = singleFlight<{ data: unknown; raw: Raw }>();
 async function run<T>(opts: Options, tools?: object[]): Promise<{ data: T; raw: Raw }> {
-  const tier = opts.tier ?? 'eco';
   const t = await transport(opts);
+  const { apiKey: _key, ...request } = opts;
+  return inFlight(JSON.stringify([t.scope, request, tools]), () => execute<T>(opts, t, tools)) as Promise<{ data: T; raw: Raw }>;
+}
+async function execute<T>(opts: Options, t: Transport, tools?: object[]): Promise<{ data: T; raw: Raw }> {
+  const tier = opts.tier ?? 'eco';
   const models = MODELS[tier];
   const first = preferred[tier];
   const all = first ? [first, ...models.filter((m) => m !== first)] : models;
@@ -209,7 +230,7 @@ async function run<T>(opts: Options, tools?: object[]): Promise<{ data: T; raw: 
     lastError?.message === 'Pas de connexion internet ?'
       ? 'Impossible de joindre le coach. Vérifie ta connexion internet.'
       : /high demand|overloaded|unavailable/i.test(lastError?.message ?? '')
-        ? 'Les serveurs de Google Gemini sont saturés en ce moment. Réessaie dans quelques minutes (rien n’est facturé).'
+        ? 'Les serveurs de Google Gemini sont saturés en ce moment. Réessaie dans quelques minutes.'
         : 'Le coach est très sollicité en ce moment. Réessaie dans un instant.',
   );
 }

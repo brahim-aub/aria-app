@@ -1,11 +1,12 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { ReactNode, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { EditorialCard } from '@/components/brand';
 import { askCoach } from '@/components/DayActions';
 import { Panel, ProgressBar, SectionHeader, Tag } from '@/components/kit';
-import { Button, Card, Chip, H1, Muted, Screen } from '@/components/ui';
+import { Button, Card, Chip, H1, IconName, Muted, Screen } from '@/components/ui';
 import { GOAL_LABEL } from '@/data/generator';
 import { generateMealPlan } from '@/lib/coach';
 import { confirmAction, notify } from '@/lib/confirm';
@@ -13,11 +14,19 @@ import { ensureAiConsent } from '@/lib/consent';
 import { formatDate } from '@/lib/date';
 import { DIET_LABEL, energyTargets, projectWeight } from '@/lib/nutrition';
 import { euro, gramsLabel, itemPrice, storeTotals } from '@/lib/prices';
+import { productPageUrl } from '@/lib/productUrl';
 import { useApp } from '@/store/AppStore';
 import type { AppData, Meal, MealItem, PriceCheck } from '@/store/types';
 import { colors, font, radius, spacing, type } from '@/theme';
 
-const openUrl = (url: string) => Linking.openURL(url).catch(() => {});
+const openUrl = (raw: string) => {
+  const url = productPageUrl(raw);
+  if (!url) {
+    notify('Lien produit invalide', 'Cette adresse fournie avec le relevé est incorrecte. Relance la recherche des prix pour obtenir un nouveau lien.');
+    return;
+  }
+  Linking.openURL(url).catch(() => notify('Lien inaccessible', 'Impossible d’ouvrir cette page. Réessaie plus tard.'));
+};
 /** Date du relevé en ligne, affichée à côté de chaque prix. */
 const foundLabel = (iso: string) => ` · relevé le ${new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`;
 
@@ -98,6 +107,8 @@ export default function Nutrition() {
   return (
     <Screen>
       <H1 style={{ marginTop: spacing.sm }}>Nutrition</H1>
+      {!plan && <EditorialCard image="nutrition" kicker="BIEN MANGER, SIMPLEMENT" title="Du bon dans ton quotidien." subtitle="Des repas à ton goût. Un budget qui te ressemble." />}
+      <Muted>{plan ? 'Choisis un jour, puis un repas pour voir les quantités et la recette.' : 'Tes goûts sont le point de départ. Le coach s’occupe du menu.'}</Muted>
 
       <SectionHeader title="Mes menus" action={plan ? 'Ajuster avec le coach' : undefined} onAction={() => askCoach('Ajuste mon plan de repas : ')} />
       {loading ? (
@@ -116,7 +127,7 @@ export default function Nutrition() {
       ) : (
         <>
           <Muted>
-            Créé le {formatDate(plan.createdAt)} · {plan.targetKcal} kcal · P {plan.proteinG} g · G {plan.carbsG} g · L {plan.fatG} g
+            Menus de la semaine · créés le {formatDate(plan.createdAt)}
           </Muted>
 
           <View style={styles.tags}>
@@ -133,18 +144,19 @@ export default function Nutrition() {
                   {dayCost && dayCost.found > 0 && <Tag label={euro(dayCost.cost)} color={colors.accentInk} icon="wallet" />}
                 </View>
               </View>
-              <ProgressBar ratio={day.kcal / plan.targetKcal} height={5} label="Calories du jour par rapport à l’objectif" />
+              <Muted style={{ fontSize: 12 }}>Calories prévues dans ces menus, pas un suivi de ce que tu as mangé.</Muted>
               {dayCost && dayCost.missing > 0 && dayCost.found > 0 && (
                 <Muted style={{ fontSize: 12 }}>
                   Coût chez {store} hors {dayCost.missing} produit(s) dont le prix n’a pas été trouvé.
                 </Muted>
               )}
               {day.meals.map((m, i) => (
-                <MealCard key={i} meal={m} check={check} store={store} />
+                <MealCard key={plan.createdAt + ':' + di + ':' + i} meal={m} check={check} store={store} />
               ))}
             </>
           )}
 
+          <NutritionSection title="Courses et budget" subtitle="Liste de courses, magasins et comparaison des prix" icon="basket-outline">
           {/* Prix réels en magasin */}
           <Card style={{ borderColor: colors.dark }}>
             <View style={styles.rowBetween}>
@@ -297,26 +309,12 @@ export default function Nutrition() {
                   )))}
           </Card>
 
-          {plan.tips.length > 0 && (
-            <Card>
-              <Text style={styles.cardTitle}>Conseils du coach</Text>
-              {plan.tips.map((tip, i) => (
-                <Muted key={i}>{tip}</Muted>
-              ))}
-            </Card>
-          )}
+          </NutritionSection>
 
-          <Button
-            title="Régénérer mes menus"
-            icon="refresh"
-            variant="secondary"
-            onPress={async () => {
-              if (await confirmAction('Nouveau plan de repas ?', 'Le plan actuel sera remplacé. Il faudra relancer la recherche des prix.', 'Régénérer')) generate();
-            }}
-          />
         </>
       )}
 
+      <NutritionSection title="Mes préférences et menus" subtitle="Goûts, allergies, conseils et renouvellement des menus" icon="options-outline">
       <Card>
         <View style={styles.rowBetween}>
           <Text style={styles.cardTitle}>Mes goûts</Text>
@@ -344,6 +342,29 @@ export default function Nutrition() {
         )}
       </Card>
 
+        {plan && <>
+          {plan.tips.length > 0 && (
+            <Card>
+              <Text style={styles.cardTitle}>Conseils du coach</Text>
+              {plan.tips.map((tip, i) => (
+                <Muted key={i}>{tip}</Muted>
+              ))}
+            </Card>
+          )}
+
+          <Button
+            title="Régénérer mes menus"
+            icon="refresh"
+            variant="secondary"
+            disabled={loading}
+            onPress={async () => {
+              if (await confirmAction('Nouveau plan de repas ?', 'Le plan actuel sera remplacé. Il faudra relancer la recherche des prix.', 'Régénérer')) generate();
+            }}
+          />
+        </>}
+      </NutritionSection>
+
+      <NutritionSection title="Comprendre mes objectifs" subtitle="Calories, nutriments et projection du poids" icon="stats-chart-outline">
       <Panel tone="ink">
         <Text style={styles.heroKicker}>Tes besoins par jour</Text>
         <Text style={styles.heroBig}>
@@ -375,8 +396,26 @@ export default function Nutrition() {
         intake={plan?.days.length ? Math.round(plan.days.reduce((s, d) => s + d.kcal, 0) / plan.days.length) : t.target}
         fromPlan={!!plan?.days.length}
       />
+      </NutritionSection>
 
     </Screen>
+  );
+}
+
+function NutritionSection({ title, subtitle, icon, children }: { title: string; subtitle: string; icon: IconName; children: ReactNode }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <Card>
+      <Pressable accessibilityRole="button" accessibilityLabel={title} accessibilityHint={subtitle} accessibilityState={{ expanded }} onPress={() => setExpanded((v) => !v)} style={[styles.rowBetween, { minHeight: 48 }]}>
+        <Ionicons name={icon} size={21} color={colors.accentInk} />
+        <View style={{ flex: 1, gap: 4 }}>
+          <Text style={styles.cardTitle}>{title}</Text>
+          <Muted>{subtitle}</Muted>
+        </View>
+        <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={20} color={colors.muted} />
+      </Pressable>
+      {expanded && <View style={{ gap: spacing.md, paddingTop: spacing.sm }}>{children}</View>}
+    </Card>
   );
 }
 
@@ -397,10 +436,11 @@ function costOf(items: MealItem[], check: PriceCheck | undefined, store: string 
 
 function MealCard({ meal, check, store }: { meal: Meal; check?: PriceCheck; store?: string }) {
   const [open, setOpen] = useState<number | null>(null);
+  const [expanded, setExpanded] = useState(false);
   const c = costOf(meal.items, check, store);
   return (
     <Card>
-      <View style={styles.rowBetween}>
+      <Pressable style={[styles.rowBetween, { minHeight: 44 }]} accessibilityRole="button" accessibilityLabel={meal.name + ', quantités et recette'} accessibilityState={{ expanded }} onPress={() => setExpanded((v) => !v)}>
         <Text style={styles.mealName}>
           {meal.name}
           {meal.time ? <Text style={styles.mealTime}> · {meal.time}</Text> : null}
@@ -409,7 +449,10 @@ function MealCard({ meal, check, store }: { meal: Meal; check?: PriceCheck; stor
           <Text style={styles.mealKcal}>{meal.kcal} kcal</Text>
           {c && c.found > 0 && <Text style={styles.mealCost}>{euro(c.cost)}</Text>}
         </View>
-      </View>
+        <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.muted} />
+      </Pressable>
+      {!expanded && <Text style={styles.mealSummary} numberOfLines={2}>{meal.items.map((it) => it.food).join(', ')}</Text>}
+      {expanded && <>
       {meal.items.map((it, k) => (
         <ItemRow key={k} item={it} check={check} store={store} open={open === k} onPress={() => setOpen(open === k ? null : k)} />
       ))}
@@ -419,6 +462,7 @@ function MealCard({ meal, check, store }: { meal: Meal; check?: PriceCheck; stor
           <Text style={styles.recipeText}>{meal.recipe}</Text>
         </View>
       ) : null}
+      </>}
     </Card>
   );
 }
@@ -556,6 +600,7 @@ const styles = StyleSheet.create({
   splitLabel: { color: colors.text, fontFamily: font.bold, fontSize: 14, flex: 1 },
   splitValue: { color: colors.text, fontFamily: font.black, fontSize: 15, fontVariant: ['tabular-nums'] },
   source: { color: colors.cyan, fontSize: 12, fontFamily: font.bold },
+  mealSummary: { color: colors.muted, fontFamily: font.regular, fontSize: 14, lineHeight: 20 },
   mealName: { color: colors.text, fontFamily: font.black, fontSize: 16, flex: 1 },
   mealTime: { color: colors.muted, fontFamily: font.bold, fontSize: 13 },
   mealKcal: { color: colors.text, fontFamily: font.black, fontVariant: ['tabular-nums'] },

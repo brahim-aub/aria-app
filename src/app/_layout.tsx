@@ -1,6 +1,7 @@
 import { Lato_400Regular, Lato_700Bold, Lato_900Black, useFonts } from '@expo-google-fonts/lato';
-import { DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import Head from 'expo-router/head';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -18,8 +19,8 @@ import { colors, font, radius, spacing } from '@/theme';
 setupNotificationHandler();
 
 const theme = {
-  ...DefaultTheme,
-  colors: { ...DefaultTheme.colors, background: colors.bg, card: colors.bg, primary: colors.accent, text: colors.text, border: colors.border },
+  ...DarkTheme,
+  colors: { ...DarkTheme.colors, background: colors.bg, card: colors.bg, primary: colors.accent, text: colors.text, border: colors.border },
 };
 
 function RootStack() {
@@ -109,7 +110,12 @@ export default function RootLayout() {
         <AppProvider>
           <AuthProvider>
             <SessionDraftProvider>
-              <StatusBar style="dark" />
+              <Head>
+                <title>Mova — À ton rythme</title>
+                <meta name="theme-color" content="#0C100D" />
+                <style>{'html, body { color-scheme: dark; background: #0C100D; }'}</style>
+              </Head>
+              <StatusBar style="light" />
               <RootStack />
             </SessionDraftProvider>
           </AuthProvider>
