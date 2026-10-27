@@ -266,7 +266,7 @@ export default function Coach() {
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.title} role="heading" aria-level={1}>
-            Coach Aria
+            Coach Mova
           </Text>
           <Text style={styles.subtitle} accessibilityLiveRegion="polite">
             {busy ? 'Réfléchit…' : 'Adapte ton programme en un message'}
@@ -314,7 +314,7 @@ export default function Coach() {
                   id: 'welcome',
                   role: 'model',
                   date: '',
-                  text: `Salut${data.profile.name ? ` ${data.profile.name}` : ''} ! Je suis Aria, ton coach. Je connais ton programme et je peux le modifier pour toi.\n\nUn imprévu, une douleur, pas de matériel, peu de temps, une question sur ton alimentation ? Écris-le simplement, je m’occupe du reste.`,
+                  text: `Salut${data.profile.name ? ` ${data.profile.name}` : ''} ! Je suis Mova, ton coach. Je connais ton programme et je peux le modifier pour toi.\n\nUn imprévu, une douleur, pas de matériel, peu de temps, une question sur ton alimentation ? Écris-le simplement, je m’occupe du reste.`,
                 }}
               />
               <View style={styles.starters}>
@@ -337,7 +337,7 @@ export default function Coach() {
                     ? 'Annulation indisponible : les données concernées ont changé depuis cette action.'
                     : 'Cette ancienne modification ne peut plus être annulée en toute sécurité.'
                   : undefined}
-                onRetry={m.error && lastUser && m === last ? () => run(lastUser.text) : undefined}
+                onRetry={m.error && lastUser && m === last && !busy ? () => run(lastUser.text) : undefined}
               />
               {m === last && m.role === 'model' && !busy && m.quickReplies?.length ? (
                 <View style={styles.starters}>
@@ -353,6 +353,11 @@ export default function Coach() {
           {busy && <Typing />}
         </ScrollView>
 
+        {!consent && (
+          <Text style={{ color: colors.muted, fontFamily: font.regular, fontSize: 13, lineHeight: 18, paddingHorizontal: spacing.md, paddingTop: spacing.sm }} accessibilityLiveRegion="polite">
+            Pour envoyer ton message, donne ton accord dans la carte « Avant de discuter avec le coach ».
+          </Text>
+        )}
         <View style={styles.inputBar}>
           <TextInput
             ref={inputRef}
@@ -367,11 +372,11 @@ export default function Coach() {
           />
           <Pressable
             onPress={() => send(input)}
-            disabled={!input.trim() || busy}
+            disabled={!input.trim() || busy || !consent}
             accessibilityRole="button"
             accessibilityLabel="Envoyer"
-            accessibilityState={{ disabled: !input.trim() || busy, busy }}
-            style={(st: PressState) => [styles.sendBtn, { opacity: !input.trim() || busy ? 0.4 : 1 }, pressFeedback(st, 0.94), focusRing(st, 22)]}
+            accessibilityState={{ disabled: !input.trim() || busy || !consent, busy }}
+            style={(st: PressState) => [styles.sendBtn, { opacity: !input.trim() || busy || !consent ? 0.4 : 1 }, pressFeedback(st, 0.94), focusRing(st, 22)]}
           >
             {busy ? <ActivityIndicator color={colors.onDark} size="small" /> : <Ionicons name="arrow-up" size={22} color={colors.accent} />}
           </Pressable>
@@ -423,7 +428,7 @@ function Bubble({ msg, onUndo, onRetry, undoDisabledReason }: { msg: ChatMessage
           </View>
         ) : null}
         {onRetry && (
-          <Pressable onPress={onRetry} style={styles.retry}>
+          <Pressable onPress={onRetry} accessibilityRole="button" accessibilityLabel="Réessayer le dernier message" style={styles.retry}>
             <Ionicons name="refresh" size={16} color={colors.accentInk} />
             <Text style={styles.link}>Réessayer</Text>
           </Pressable>
@@ -507,11 +512,11 @@ const styles = StyleSheet.create({
   cardTitle: { color: colors.text, fontFamily: font.black, fontSize: 16 },
   welcome: { gap: spacing.md },
   starters: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  starter: { minHeight: 40, justifyContent: 'center', borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, borderRadius: radius.pill, paddingHorizontal: 14, paddingVertical: 8 },
+  starter: { minHeight: 44, justifyContent: 'center', borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, borderRadius: radius.pill, paddingHorizontal: 14, paddingVertical: 8 },
   starterText: { color: colors.text, fontFamily: font.bold, fontSize: 14 },
   bubbleRow: { flexDirection: 'row' },
   bubble: { maxWidth: '88%', borderRadius: 20, padding: spacing.md, gap: spacing.sm, borderWidth: 1 },
-  mine: { backgroundColor: colors.dark, borderColor: colors.dark, borderBottomRightRadius: 6 },
+  mine: { backgroundColor: '#303B26', borderColor: '#465536', borderBottomRightRadius: 6 },
   theirs: { backgroundColor: colors.card, borderColor: colors.border, borderBottomLeftRadius: 6 },
   msgText: { fontFamily: font.regular, fontSize: 15, lineHeight: 22 },
   changes: { backgroundColor: colors.bg, borderRadius: radius.sm, padding: spacing.sm + 2, gap: 6 },
@@ -519,7 +524,7 @@ const styles = StyleSheet.create({
   changeText: { color: colors.text, fontSize: 13, fontFamily: font.bold, flex: 1 },
   changeActions: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 },
   link: { color: colors.accentInk, fontFamily: font.black, fontSize: 13 },
-  retry: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  retry: { minHeight: 44, alignItems: 'center', flexDirection: 'row', gap: 6 },
   typingDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.muted },
   inputBar: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, padding: spacing.sm, paddingHorizontal: spacing.md, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.bg },
   input: { fontFamily: font.regular, flex: 1, color: colors.text, backgroundColor: colors.card, borderRadius: 22, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.md, paddingTop: 11, paddingBottom: 11, fontSize: 15, maxHeight: 120 },

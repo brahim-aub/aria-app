@@ -1,23 +1,21 @@
 {
   "expo": {
-    "name": "Aria Sport",
+    "name": "Mova",
     "slug": "aria-sport",
     "scheme": "ariasport",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "backgroundColor": "#F4F5F2",
+    "icon": "./assets/mova/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0C100D",
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "package": "com.ariasport.app",
       "adaptiveIcon": {
-        "backgroundColor": "#192126",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#0C100D",
+        "foregroundImage": "./assets/mova/icon.png"
       },
       "predictiveBackGestureEnabled": false,
       "runtimeVersion": {
@@ -25,7 +23,7 @@
       }
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/mova/icon.png"
     },
     "plugins": [
       "expo-router",
@@ -37,7 +35,8 @@
         }
       ],
       "expo-image",
-      "expo-status-bar"
+      "expo-status-bar",
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true

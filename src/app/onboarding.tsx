@@ -1,9 +1,10 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { KeyboardAvoidingView, Platform, ScrollView, ScrollViewInstance, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BrandLogo, EditorialCard } from '@/components/brand';
 import { Field, OptionCard, Panel, ProgressBar } from '@/components/kit';
 import { Button, Chip, frenchSpacing, IconButton, IconName, Muted } from '@/components/ui';
 import { BODY_PART_LABEL, EQUIPMENT_LABEL } from '@/data/exercises';
@@ -46,6 +47,8 @@ const PAIN_DURATIONS = [
 export default function Onboarding() {
   const { data, completeOnboarding } = useApp();
   const [step, setStep] = useState(0);
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  useEffect(() => { scrollRef.current?.scrollTo({ y: 0, animated: false }); }, [step]);
   const [p, setP] = useState<Profile>({ ...DEFAULT_PROFILE, ...data.profile });
   const [pains, setPains] = useState<BodyPart[]>([]);
   const [painDays, setPainDays] = useState(14);
@@ -104,17 +107,16 @@ export default function Onboarding() {
           </Text>
         </View>
 
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <ScrollView ref={scrollRef} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           {step === 0 && (
             <>
               <View style={styles.welcome}>
-                <View style={styles.mark}>
-                  <Ionicons name="flash" size={26} color={colors.onAccent} />
-                </View>
+                <BrandLogo />
                 <Text style={styles.welcomeTitle} role="heading" aria-level={1}>
-                  Ton programme de sport, qui s’adapte à ta semaine.
+                  Du mouvement. À ta mesure.
                 </Text>
-                <Text style={styles.welcomeText}>Un coach construit tes séances et les ajuste quand la vie s’en mêle : peu de temps, pas de matériel, une douleur.</Text>
+                <Text style={styles.welcomeText}>Un programme qui suit ta vraie vie. On fait connaissance, puis on trouve ton rythme.</Text>
+                <EditorialCard kicker="TON NOUVEAU DÉPART" title="Chaque mouvement compte." />
               </View>
               <Title>Comment je t’appelle ?</Title>
               <Field value={p.name} onChangeText={(name) => set({ name })} placeholder="Ton prénom" autoFocus returnKeyType="next" onSubmitEditing={next} />
@@ -185,7 +187,7 @@ export default function Onboarding() {
                   subtitle={pl.sub}
                   icon={pl.icon}
                   selected={p.place === pl.id}
-                 
+
                   onPress={() => set({ place: pl.id, equipment: pl.id === 'salle' ? (Object.keys(EQUIPMENT_LABEL) as Equipment[]) : p.place === 'salle' ? [] : p.equipment })}
                 />
               ))}
@@ -240,7 +242,7 @@ export default function Onboarding() {
                     label={BODY_PART_LABEL[b]}
                     active={pains.includes(b)}
                     onPress={() => setPains((cur) => (cur.includes(b) ? cur.filter((x) => x !== b) : [...cur, b]))}
-                   
+
                   />
                 ))}
               </View>
@@ -268,7 +270,7 @@ export default function Onboarding() {
                   icon={j === 'assis' ? 'desktop' : j === 'debout' ? 'walk' : 'hammer'}
                   selected={p.job === j}
                   onPress={() => set({ job: j })}
-                 
+
                 />
               ))}
               <Text style={styles.label}>Nutrition</Text>

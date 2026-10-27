@@ -1,3 +1,4 @@
+import { EditorialCard, workoutImage } from '@/components/brand';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useKeepAwake } from 'expo-keep-awake';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -320,9 +321,7 @@ export default function SessionPlayer() {
         </View>
         <ScrollView contentContainerStyle={styles.scroll}>
           {draftError && <Notice tone="warning"><Muted>{draftError}</Muted></Notice>}
-          <Text style={styles.kicker}>{resolved.kicker}</Text>
-          <H1>{session.title}</H1>
-          {session.focus ? <Muted>{session.focus}</Muted> : null}
+          <EditorialCard kicker={resolved.kicker} image={workoutImage(session.title)} title={session.title} subtitle={session.focus || "Un moment pour toi. Exercice après exercice."} />
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
             <Stat value={`~${estMin}`} label="minutes" accent />
             <Stat value={`${session.exercises.length}`} label="exercices" />
@@ -354,7 +353,7 @@ export default function SessionPlayer() {
           </Muted>
         </ScrollView>
         <View style={styles.footer}>
-          {alreadyDone ? <Muted style={{ textAlign: 'center' }}>Séance déjà faite aujourd’hui 💪</Muted> : <Button title="C'est parti" icon="play" big onPress={start} />}
+          {alreadyDone ? <Muted style={{ textAlign: 'center' }}>Séance déjà faite aujourd’hui 💪</Muted> : <Button title="Commencer ma séance" icon="play" big onPress={start} />}
         </View>
       </SafeAreaView>
     );
@@ -464,29 +463,22 @@ export default function SessionPlayer() {
         <Text style={styles.elapsed}>{formatClock((now - startedAt) / 1000)}</Text>
       </View>
 
-      <ScrollView contentContainerStyle={[styles.scroll, { flexGrow: 1 }]} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[styles.scroll, styles.runningColumn]} keyboardShouldPersistTaps="handled">
         {draftError && <Notice tone="warning"><Muted>{draftError}</Muted></Notice>}
         <Text style={[styles.kicker, { color: accent }]}>{phaseLabel}</Text>
         <H1>{isRest ? 'Repos' : exercise?.name}</H1>
         {exercise && <Muted>{musclesLabel(exercise)}</Muted>}
-        {step.type === 'work' && <ExerciseDemo exerciseId={step.exerciseId} size={190} />}
-
-        <View style={[styles.bigCircle, { borderColor: accent }]}>
-          {timed ? (
-            <Text style={[styles.bigNumber, { color: accent }]}>{formatClock((remainingMs ?? 0) / 1000)}</Text>
-          ) : (
-            <>
-              <Text style={[styles.bigNumber, { color: accent }]}>{draftReps}</Text>
-              <Text style={styles.bigUnit}>répétitions</Text>
-            </>
-          )}
-          {paused && <Text style={styles.pausedLabel}>En pause</Text>}
-        </View>
-        {timed && (
-          <View style={styles.stepTrack}>
-            <View style={[styles.stepFill, { width: `${ratio * 100}%`, backgroundColor: accent }]} />
+        <View style={styles.effortCard}>
+          <View style={styles.effortRow}>
+            <View style={{ flex: 1, gap: 3 }}>
+              <Text style={styles.effortLabel}>{timed ? paused ? 'EN PAUSE' : isRest ? 'RÉCUPÉRATION' : 'TEMPS RESTANT' : 'CETTE SÉRIE'}</Text>
+              <Text style={[styles.effortValue, { color: accent }]}>{timed ? formatClock((remainingMs ?? 0) / 1000) : draftReps}<Text style={styles.effortUnit}>{timed ? '' : ' répétitions'}</Text></Text>
+            </View>
+            <Ionicons name={timed ? paused ? 'pause-circle-outline' : 'timer-outline' : 'repeat-outline'} size={26} color={accent} />
           </View>
-        )}
+          {timed && <View style={styles.stepTrack}><View style={[styles.stepFill, { width: `${ratio * 100}%`, backgroundColor: accent }]} /></View>}
+        </View>
+        {step.type === 'work' && <ExerciseDemo key={step.exerciseId} exerciseId={step.exerciseId} active={!paused} />}
 
         {!timed && step.type === 'work' && step.phase === 'main' && (
           <View style={styles.adjustRow}>
@@ -502,7 +494,7 @@ export default function SessionPlayer() {
               {exerciseName(nextWork.exerciseId)} · {amountLabel(nextWork)}
             </H2>
             {EXERCISES[nextWork.exerciseId]?.cues[0] && <Muted>{EXERCISES[nextWork.exerciseId].cues[0]}</Muted>}
-            <ExerciseDemo exerciseId={nextWork.exerciseId} size={150} />
+            <ExerciseDemo key={nextWork.exerciseId} exerciseId={nextWork.exerciseId} compact active={!paused} />
           </Card>
         )}
 
@@ -543,11 +535,11 @@ function Adjust({ label, value, onChange, step }: { label: string; value: number
     <View style={styles.adjust}>
       <Text style={styles.adjustLabel}>{label}</Text>
       <View style={styles.adjustInner}>
-        <Pressable hitSlop={8} onPress={() => onChange(Math.max(0, Math.round((value - step) * 10) / 10))}>
+        <Pressable accessibilityRole="button" accessibilityLabel={"Diminuer " + label.toLowerCase()} style={styles.adjustButton} onPress={() => onChange(Math.max(0, Math.round((value - step) * 10) / 10))}>
           <Ionicons name="remove-circle" size={30} color={colors.muted} />
         </Pressable>
-        <Text style={styles.adjustValue}>{value}</Text>
-        <Pressable hitSlop={8} onPress={() => onChange(Math.round((value + step) * 10) / 10)}>
+        <Text style={styles.adjustValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>{value}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={"Augmenter " + label.toLowerCase()} style={styles.adjustButton} onPress={() => onChange(Math.round((value + step) * 10) / 10)}>
           <Ionicons name="add-circle" size={30} color={colors.accentInk} />
         </Pressable>
       </View>
@@ -558,6 +550,7 @@ function Adjust({ label, value, onChange, step }: { label: string; value: number
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   scroll: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xl },
+  runningColumn: { width: '100%', maxWidth: 640, alignSelf: 'center', flexGrow: 1 },
   topBar: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.md, paddingTop: spacing.sm },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   progressTrack: { flex: 1, height: 6, borderRadius: 3, backgroundColor: colors.border, overflow: 'hidden' },
@@ -565,17 +558,19 @@ const styles = StyleSheet.create({
   elapsed: { color: colors.muted, fontVariant: ['tabular-nums'], fontFamily: font.bold, minWidth: 44, textAlign: 'right' },
   kicker: { color: colors.accentInk, fontSize: 15, fontFamily: font.black },
   footer: { padding: spacing.md },
-  bigCircle: { alignSelf: 'center', width: 210, height: 210, borderRadius: 105, borderWidth: 6, alignItems: 'center', justifyContent: 'center', marginVertical: spacing.sm },
-  bigNumber: { fontSize: 62, fontFamily: font.black, fontVariant: ['tabular-nums'] },
-  bigUnit: { color: colors.muted, fontSize: 16, fontFamily: font.bold },
-  pausedLabel: { color: colors.muted, fontFamily: font.black, fontSize: 14, marginTop: 4 },
-  stepTrack: { height: 4, borderRadius: 2, backgroundColor: colors.border, overflow: 'hidden', marginHorizontal: spacing.xl },
+  effortCard: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.md, gap: 12 },
+  effortRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  effortLabel: { color: colors.muted, fontFamily: font.bold, fontSize: 11, letterSpacing: 1.1 },
+  effortValue: { fontSize: 38, lineHeight: 44, fontFamily: font.black, fontVariant: ['tabular-nums'] },
+  effortUnit: { color: colors.muted, fontSize: 15, fontFamily: font.bold },
+  stepTrack: { height: 4, borderRadius: 2, backgroundColor: colors.border, overflow: 'hidden' },
   stepFill: { height: '100%' },
   adjustRow: { flexDirection: 'row', gap: spacing.sm },
   adjust: { flex: 1, backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.sm, alignItems: 'center', gap: 4 },
   adjustLabel: { color: colors.muted, fontSize: 12, fontFamily: font.bold },
-  adjustInner: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  adjustValue: { color: colors.text, fontSize: 22, fontFamily: font.black, minWidth: 50, textAlign: 'center', fontVariant: ['tabular-nums'] },
+  adjustInner: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 2 },
+  adjustButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  adjustValue: { color: colors.text, fontSize: 22, fontFamily: font.black, flex: 1, minWidth: 0, textAlign: 'center', fontVariant: ['tabular-nums'] },
   cueRow: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' },
   cueText: { fontFamily: font.regular, color: colors.text, fontSize: 15, flex: 1, lineHeight: 21 },
   volume: { color: colors.violet, fontSize: 32, fontFamily: font.black },

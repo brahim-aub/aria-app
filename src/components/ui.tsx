@@ -78,8 +78,8 @@ type ButtonProps = {
 };
 
 export function Button({ title, onPress, variant = 'primary', icon, style, disabled, loading, big, color, accessibilityHint }: ButtonProps) {
-  const bg = color && variant === 'primary' ? color : { primary: colors.dark, accent: colors.accent, secondary: colors.card, ghost: 'transparent', danger: colors.pinkDim }[variant];
-  const fg = color && variant === 'primary' ? readableOn(color) : { primary: colors.onDark, accent: colors.onAccent, secondary: colors.text, ghost: colors.text, danger: colors.danger }[variant];
+  const bg = color && variant === 'primary' ? color : { primary: colors.accent, accent: colors.accent, secondary: colors.card, ghost: 'transparent', danger: colors.pinkDim }[variant];
+  const fg = color && variant === 'primary' ? readableOn(color) : { primary: colors.onAccent, accent: colors.onAccent, secondary: colors.text, ghost: colors.text, danger: colors.danger }[variant];
   const inactive = disabled || loading;
   return (
     <Pressable
@@ -87,7 +87,7 @@ export function Button({ title, onPress, variant = 'primary', icon, style, disab
       accessibilityRole="button"
       accessibilityLabel={title}
       accessibilityHint={accessibilityHint}
-      accessibilityState={{ disabled: !!disabled, busy: !!loading }}
+      accessibilityState={{ disabled: !!inactive, busy: !!loading }}
       onPress={() => {
         tick();
         onPress();
@@ -218,8 +218,8 @@ export function Stat({ value, label, accent }: { value: string; label: string; a
 
 export const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  scrollContent: { padding: spacing.md, paddingBottom: spacing.xxl },
-  column: { width: '100%', maxWidth: layout.maxWidth, alignSelf: 'center', gap: spacing.md },
+  scrollContent: { padding: spacing.lg, paddingBottom: spacing.xxl },
+  column: { width: '100%', maxWidth: layout.maxWidth, alignSelf: 'center', gap: spacing.lg },
   h1: { color: colors.text, ...type.title },
   h2: { color: colors.text, ...type.h2 },
   muted: { color: colors.muted, ...type.small, fontSize: 14, lineHeight: 20 },
@@ -231,7 +231,7 @@ export const styles = StyleSheet.create({
   buttonTextBig: { fontSize: 17, fontFamily: font.black },
   iconButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
   iconButtonPlain: { backgroundColor: 'transparent', borderWidth: 0 },
-  chip: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
+  chip: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
   chipActive: { backgroundColor: colors.dark, borderColor: colors.dark },
   chipText: { color: colors.text, fontFamily: font.bold, fontSize: 14 },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },

@@ -3,15 +3,16 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { EditorialCard, workoutImage } from '@/components/brand';
 import { askCoach, useDayActions } from '@/components/DayActions';
-import { ExerciseRow, SectionHeader, Tag } from '@/components/kit';
+import { ExerciseRow, SectionHeader, Segmented, Tag } from '@/components/kit';
 import { Button, Card, Chip, H1, IconButton, Muted, Screen } from '@/components/ui';
 import { BODY_PART_LABEL } from '@/data/exercises';
 import { DAY_SHORT, GOAL_LABEL, LEVEL_LABEL } from '@/data/generator';
 import { confirmAction } from '@/lib/confirm';
 import { addDays, dateKey, formatKey, relativeDay, weekdayIndex } from '@/lib/date';
 import { focusRing, PressState, pressFeedback } from '@/lib/motion';
-import { getRange, ScheduledDay } from '@/lib/schedule';
+import { getRange, nextSession, ScheduledDay } from '@/lib/schedule';
 import { estimateMinutes } from '@/lib/workout';
 import { useApp } from '@/store/AppStore';
 import { colors, radius, spacing, font } from '@/theme';
@@ -28,10 +29,13 @@ export default function Programme() {
   const { data, regeneratePlan, removeLimitation } = useApp();
   const dayActions = useDayActions();
   const [showRest, setShowRest] = useState(false);
+  const [week, setWeek] = useState<'0' | '1' | '2'>('0');
+  const [openTemplate, setOpenTemplate] = useState<string | null>(null);
   const today = dateKey();
   const monday = addDays(today, -weekdayIndex(today));
   const days = getRange(data, monday, 21);
   const p = data.profile;
+  const next = nextSession(data, today, 21);
   const limitations = data.limitations.filter((l) => l.endDate >= today);
 
   const weeks = [0, 1, 2].map((w) => days.slice(w * 7, w * 7 + 7));
@@ -40,13 +44,16 @@ export default function Programme() {
     <Screen>
       {dayActions.element}
       <H1 style={{ marginTop: spacing.sm }}>Programme</H1>
+      {next?.session && (
+        <EditorialCard kicker={relativeDay(next.date) + ' · TA PROCHAINE SÉANCE'} image={workoutImage(next.session.title)} title={next.session.title} subtitle={estimateMinutes(next.session) + ' min · ' + next.session.exercises.length + ' exercices'} action="Voir les exercices" onPress={() => router.push(`/seance/d-${next.date}`)} />
+      )}
       <Card>
         <View style={styles.tags}>
           <Tag label={GOAL_LABEL[p.goal]} color={colors.text} icon="flag" />
           <Tag label={LEVEL_LABEL[p.level]} color={colors.text} icon="stats-chart" />
           <Tag label={`${p.sessionsPerWeek} × ${p.sessionMinutes} min`} color={colors.text} icon="time" />
         </View>
-        <Muted>Jours : {p.trainingDays.map((d) => DAY_SHORT[d]).join(', ')}. Appuie sur un jour pour le décaler, le changer ou l’adapter.</Muted>
+        <Muted>Jours : {p.trainingDays.map((d) => DAY_SHORT[d]).join(', ')}. Appuie sur une séance pour voir ses exercices. Le bouton ⋯ permet de la décaler, la changer ou l’adapter.</Muted>
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           <Button title="Modifier" icon="options" variant="secondary" style={{ flex: 1 }} onPress={() => router.push('/reglages')} />
           <Button title="Coach" icon="sparkles" style={{ flex: 1 }} onPress={() => askCoach('Je voudrais modifier mon programme : ')} />
@@ -58,13 +65,14 @@ export default function Programme() {
         <Chip label="Tous les jours" active={showRest} onPress={() => setShowRest(true)} color={colors.cyan} />
       </View>
 
-      {weeks.map((w, i) => (
+      <Segmented label="Semaine du programme" value={week} onChange={setWeek} options={[{ value: '0', label: 'Cette semaine' }, { value: '1', label: 'Prochaine' }, { value: '2', label: 'Dans 2 sem.' }]} />
+      {weeks.map((w, i) => i === Number(week) && (
         <View key={i} style={{ gap: spacing.sm }}>
           <SectionHeader title={i === 0 ? 'Cette semaine' : i === 1 ? 'Semaine prochaine' : `Semaine du ${formatKey(w[0].date, { day: 'numeric', month: 'short' })}`} />
           {w
             .filter((d) => showRest || d.session || d.log)
             .map((d) => (
-              <DayRow key={d.date} day={d} today={today} onPress={() => (d.status === 'done' ? undefined : dayActions.open(d))} />
+              <DayRow key={d.date} day={d} today={today} onPress={d.status === 'done' ? undefined : d.session ? () => router.push({ pathname: '/seance/[id]', params: { id: 'd-' + d.date } }) : () => dayActions.open(d)} onOptions={d.status === 'done' ? undefined : () => dayActions.open(d)} />
             ))}
           {!showRest && !w.some((d) => d.session || d.log) && <Muted>Aucune séance.</Muted>}
         </View>
@@ -100,7 +108,7 @@ export default function Programme() {
       <Muted>Ces séances s’enchaînent dans l’ordre sur tes jours d’entraînement.</Muted>
       {data.plan.templates.map((t, i) => (
         <Card key={t.id}>
-          <View style={styles.rowBetween}>
+          <Pressable accessibilityRole="button" accessibilityLabel={t.title + ', voir les exercices'} accessibilityState={{ expanded: openTemplate === t.id }} onPress={() => setOpenTemplate(openTemplate === t.id ? null : t.id)} style={[styles.rowBetween, { minHeight: 48 }]}>
             <View style={styles.rotation}>
               <View style={styles.letter}>
                 <Text style={styles.letterText}>{String.fromCharCode(65 + i)}</Text>
@@ -108,11 +116,14 @@ export default function Programme() {
               <Text style={[styles.dayTitle, { flex: 1 }]}>{t.title}</Text>
             </View>
             <Tag label={`${estimateMinutes(t)} min`} color={colors.text} />
-          </View>
+            <Ionicons name={openTemplate === t.id ? 'chevron-up' : 'chevron-down'} size={18} color={colors.muted} />
+          </Pressable>
+          {openTemplate === t.id && <>
           {t.focus ? <Muted>{t.focus}</Muted> : null}
           {t.exercises.map((e, k) => (
             <ExerciseRow key={k} e={e} index={k} />
           ))}
+          </>}
         </Card>
       ))}
       <Button
@@ -127,15 +138,17 @@ export default function Programme() {
   );
 }
 
-function DayRow({ day, today, onPress }: { day: ScheduledDay; today: string; onPress: () => void }) {
+function DayRow({ day, today, onPress, onOptions }: { day: ScheduledDay; today: string; onPress?: () => void; onOptions?: () => void }) {
   const st = STATUS[day.status];
   const isToday = day.date === today;
   return (
+    <View style={[styles.day, isToday && styles.dayToday]}>
     <Pressable
       onPress={onPress}
-      accessibilityRole="button"
+      disabled={!onPress}
+      accessibilityRole={onPress ? 'button' : undefined}
       accessibilityLabel={`${relativeDay(day.date)}, ${day.log?.title ?? day.session?.title ?? 'repos'}, ${st.label.toLowerCase()}`}
-      style={(s: PressState) => [styles.day, isToday && styles.dayToday, s.hovered && { borderColor: colors.borderStrong }, pressFeedback(s, 0.99), focusRing(s, radius.md)]}
+      style={(s: PressState) => [styles.dayContent, onPress && s.hovered && { borderColor: colors.borderStrong }, onPress && pressFeedback(s, 0.99), focusRing(s, radius.md)]}
     >
       <View style={[styles.dayDate, { backgroundColor: st.color + '22' }]}>
         <Text style={[styles.dayWeek, { color: st.color }]}>{formatKey(day.date, { weekday: 'short' }).replace('.', '')}</Text>
@@ -160,6 +173,8 @@ function DayRow({ day, today, onPress }: { day: ScheduledDay; today: string; onP
       </View>
       {day.status === 'done' ? <Ionicons name="checkmark-circle" size={22} color={colors.accentInk} /> : <Ionicons name="chevron-forward" size={18} color={colors.muted} />}
     </Pressable>
+      {onOptions && <IconButton icon="ellipsis-horizontal" plain label={'Options de la séance : ' + relativeDay(day.date).toLowerCase()} onPress={onOptions} />}
+    </View>
   );
 }
 
@@ -167,6 +182,7 @@ const styles = StyleSheet.create({
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
   day: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.sm + 2 },
+  dayContent: { flex: 1, minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: spacing.md, borderRadius: radius.md },
   dayDate: { width: 48, height: 52, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   dayWeek: { fontSize: 12, fontFamily: font.black },
   dayNum: { fontSize: 19, fontFamily: font.black },

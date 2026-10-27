@@ -51,3 +51,6 @@ founder/
 
 # cache local de la CLI Supabase
 supabase/.temp/
+
+# Licensed exercise clips: restored from the official free pack for local/EAS builds
+/assets/exercise-hd/*.mp4

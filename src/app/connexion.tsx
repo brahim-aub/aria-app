@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BrandLogo, EditorialCard } from '@/components/brand';
 import { Field, Notice, Segmented } from '@/components/kit';
 import { Button } from '@/components/ui';
 import { authErrorMessage } from '@/lib/supabase';
@@ -55,6 +56,8 @@ export default function Connexion() {
   };
 
   const submit = () => {
+    if (busy) return;
+    if (mode === 'signin' && !password.trim()) return setError('Entre ton mot de passe pour te connecter.');
     if (mode !== 'confirm' && mode !== 'reset' && !isEmail(email)) return setError('Entre une adresse e-mail valide.');
     if (mode === 'signup' && !agree) return setError('Coche la case pour accepter l’enregistrement de tes données sur ton compte.');
     if ((mode === 'signup' || mode === 'reset') && password.length < 8) return setError('Le mot de passe doit faire au moins 8 caractères.');
@@ -86,15 +89,8 @@ export default function Connexion() {
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-          <View style={styles.hero}>
-            <View style={styles.logo}>
-              <Ionicons name="flash" size={22} color={colors.onAccent} />
-            </View>
-            <Text style={styles.heroTitle}>
-              Où que tu sois,{'\n'}ta <Text style={styles.highlight}>santé</Text> d’abord
-            </Text>
-            <Text style={styles.heroText}>Un coach qui adapte ton programme à ta vie, chaque semaine.</Text>
-          </View>
+          <BrandLogo />
+          <EditorialCard kicker="LE MOUVEMENT COMMENCE ICI" title="Le bon rythme, c’est le tien." subtitle="Des séances pour ta vraie vie. Un coach qui s’adapte à toi." />
 
           <View style={styles.form}>
             {(mode === 'signin' || mode === 'signup') && (
@@ -120,7 +116,7 @@ export default function Connexion() {
             )}
 
             {mode !== 'confirm' && mode !== 'reset' && (
-              <Field label="E-mail" value={email} onChangeText={setEmail} autoCapitalize="none" autoComplete="email" keyboardType="email-address" textContentType="emailAddress" placeholder="toi@exemple.fr" />
+              <Field label="E-mail" value={email} onChangeText={setEmail} autoCapitalize="none" autoCorrect={false} autoComplete="email" keyboardType="email-address" textContentType="emailAddress" placeholder="toi@exemple.fr" />
             )}
             {withCode && (
               <Field label="Code reçu par e-mail" value={code} onChangeText={(t) => setCode(t.replace(/\D/g, ''))} keyboardType="number-pad" autoComplete="one-time-code" textContentType="oneTimeCode" maxLength={8} placeholder="123456" />
@@ -132,6 +128,11 @@ export default function Connexion() {
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={!showPw}
+                  autoCorrect={false}
+                  returnKeyType="go"
+                  onSubmitEditing={submit}
+                  style={{ paddingRight: 60 }}
+                  hint={mode === 'signup' || mode === 'reset' ? 'Au moins 8 caractères.' : undefined}
                   autoCapitalize="none"
                   autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
                   textContentType={mode === 'signin' ? 'password' : 'newPassword'}
@@ -200,7 +201,7 @@ export default function Connexion() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
-  scroll: { padding: spacing.md, gap: spacing.md, flexGrow: 1, justifyContent: 'center', width: '100%', maxWidth: 480, alignSelf: 'center' },
+  scroll: { padding: spacing.lg, gap: spacing.lg, flexGrow: 1, justifyContent: 'flex-start', width: '100%', maxWidth: 480, alignSelf: 'center' },
   hero: { backgroundColor: colors.dark, borderRadius: radius.lg, padding: spacing.lg, gap: spacing.sm },
   logo: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.xs },
   heroTitle: { color: colors.onDark, fontFamily: font.black, fontSize: 30, lineHeight: 36, letterSpacing: -0.5 },
@@ -211,7 +212,7 @@ const styles = StyleSheet.create({
   noticeText: { color: colors.text, ...type.small, fontSize: 14, lineHeight: 20 },
   box: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: colors.borderStrong, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
   boxOn: { backgroundColor: colors.accent, borderColor: colors.dark },
-  eye: { position: 'absolute', right: 14, bottom: 13 },
+  eye: { position: 'absolute', right: 4, top: 24, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   link: { alignSelf: 'center', paddingHorizontal: 8, minHeight: 44, justifyContent: 'center' },
   linkText: { color: colors.accentInk, fontFamily: font.bold, fontSize: 15 },
   agree: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' },

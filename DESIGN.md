@@ -1,53 +1,83 @@
-# Aria Sport : direction artistique et système de design
+# Mova — direction artistique
 
-## Pour qui, pour quoi
+Nom de travail : **Mova**. Signature : **À ton rythme. Pour de vrai.**
+Le nom est une proposition créative ; sa disponibilité commerciale n’a pas été vérifiée.
 
-- **Utilisateurs** : adultes de 18 à 50 ans, débutants ou en reprise, qui s'entraînent seuls, chez eux ou en salle.
-- **Usage** : ils ouvrent l'app une fois par jour, souvent debout, téléphone dans une main, juste avant de bouger.
-- **Leur question** : « Qu'est-ce que je fais aujourd'hui, combien de temps, et est-ce que je peux l'adapter ? »
-- **L'interface** répond à ça d'abord. Le reste (stats, succès, nutrition) vient ensuite.
+## Intention
+Une application d’entraînement accessible, calme et crédible. Les références fournies guident la hiérarchie et l’ambiance, sans reproduire leurs interfaces ou leurs personnages.
+L’accent porte sur le mouvement régulier et la vie réelle, plutôt que sur la performance extrême.
 
-## Direction : « carnet d'entraînement »
+## Système visuel
+- Fond charbon : #0C100D.
+- Cartes : #171D18 ; surfaces secondaires : #222A22.
+- Texte principal : #F3F5EF ; secondaire : #A4AFA2.
+- Citron : #CBF45C, réservé aux actions et aux états actifs.
+- Lavande : #C4AEF5, repère du coach.
+- Typographie Lato déjà installée : Regular pour lire, Bold pour agir, Black pour les titres.
+- Cartes de 20 à 28 px de rayon, espacement principal de 24 px.
+- Photographies éditoriales sombres, texte placé sur un dégradé garantissant sa lecture.
+- Logo : trois traits inclinés, dont le trait central plus court évoque le mouvement. Le point citron accompagne le mot « mova. ».
 
-C'est un carnet de sport bien tenu : papier clair, encre ardoise, un surligneur citron.
+## Règles UX
+1. Une action principale immédiatement identifiable.
+2. Un clic sur une séance ouvre son aperçu ; le démarrage demande un bouton dédié.
+3. Les détails secondaires se déplient : rotations de séances, ingrédients, prix et calculs nutritionnels.
+4. Garder les cinq libellés de navigation visibles.
+5. Les outils complémentaires restent accessibles depuis Profil.
+6. Pas de fausses statistiques, de fausse activité du coach ou de promesses de résultats.
+7. Zones tactiles de 44 px minimum ; focus clavier visible ; respecter les préférences de mouvement existantes.
+8. Les images illustrent l’univers de la marque, pas une démonstration d’exercice ni le résultat exact d’un menu.
 
-- **Le citron** a un seul sens : *ce qui te fait avancer*. On le trouve sur l'action principale, les barres de progression et ce qui est fait. Jamais en décoration, jamais en texte sur fond clair.
-- **Un seul élément audacieux par écran.** Sur l'accueil, c'est la carte « Aujourd'hui » : un bloc ardoise, une durée en très grands chiffres et un bouton citron. Tout le reste est calme.
-- **Les chiffres sont l'élément graphique principal** : Lato Black, chiffres tabulaires, grande taille, avec une petite étiquette en minuscules à côté.
-- **Pas de dégradés décoratifs, pas d'arc-en-ciel par section, pas d'ombres sur les cartes.** On sépare les blocs par la surface (fond, carte, encre) et un filet fin.
-- **Pas d'étiquettes en capitales espacées**, pas de « → » ajouté aux boutons. Tout est en casse de phrase, avec des verbes d'action (« Commencer la séance », « Enregistrer »).
+## Écrans
+- Connexion : marque, photo et proposition claire, formulaire séparé.
+- Accueil : semaine, séance, coach, régularité.
+- Programme : aperçu photographique de la prochaine séance ; calendrier et options distincts ; rotations repliables.
+- Séance : image d’introduction, métriques et exercices ; démarrage explicite.
+- Nutrition : visuel éditorial, repas en premier ; détails à la demande.
+- Coach et Profil : mêmes couleurs, surfaces, contrôles et hiérarchie.
 
-## Tokens (`src/theme.ts`)
+## Assets
+- assets/mova/training.png — photographie générée pour la marque.
+- assets/mova/nutrition.png — photographie générée pour la marque.
+- assets/mova/mark.svg — logo vectoriel.
+- assets/mova/icon.png — icône native et web.
+- src/components/brand.tsx — logo et carte photographique réutilisables.
 
-| Rôle | Token | Valeur |
-| --- | --- | --- |
-| Fond de page | `bg` | `#F4F5F2` |
-| Surface (carte) | `card` | `#FFFFFF` |
-| Surface creusée (champ, piste) | `cardAlt` | `#ECEEEA` |
-| Filet | `border` | `#DFE2DD` |
-| Encre (texte, bloc fort) | `text` / `dark` | `#192126` |
-| Encre secondaire | `muted` | `#5B6267` (6,1:1 sur blanc) |
-| Citron (action, progrès) | `accent` | `#BBF246` |
-| Vert lisible sur clair | `accentInk` | `#4A7300` |
-| Signaux | `cyan` (info), `rest` (attention), `danger`, `violet` (coach), `yellow` (trophées) | teintes foncées ≥ 4,5:1 sur blanc |
+Les identifiants techniques, clés de stockage et connexions restent ceux du projet existant pour conserver les données et l’authentification.
 
-- **Typographie** : Lato uniquement. Échelle `type` : 34 / 26 / 20 / 17 / 15 / 13 / 12. Graisses : Black pour les titres et chiffres, Bold pour les libellés, Regular pour le texte courant. Interligne d'environ 1,45 pour le corps.
-- **Espacements** : base 4 (4, 8, 12, 16, 24, 32, 48).
-- **Rayons** : la hiérarchie suit la taille. 10 pour un petit élément, 16 pour une ligne ou une carte, 24 pour un panneau, pilule pour les commandes.
-- **Mouvement** : 120 ms pour la pression, 220 ms pour un changement d'état, 420 ms pour le remplissage d'une jauge. Tout est désactivé si l'utilisateur a choisi « réduire les animations ».
-- **Largeur de contenu** : 640 px au maximum, centrée (tablette, web).
+## Charte conservée — version 1.1 · 27 octobre 2026
+Source de vérité : src/theme.ts pour les valeurs ; ce document pour leurs usages.
+La planche visuelle exportable est conservée dans outputs/Mova-charte-visuelle.html au niveau du dossier de travail.
 
-## Composants
+### Palette fonctionnelle
+| Usage | Token | Couleur |
+|---|---|---|
+| Fond | bg | #0C100D |
+| Carte | card | #171D18 |
+| Surface secondaire | cardAlt | #222A22 |
+| Texte principal | text | #F3F5EF |
+| Texte secondaire | muted | #A4AFA2 |
+| Action, sélection, progression | accent | #CBF45C |
+| Texte sur citron | onAccent | #142008 |
+| Coach | violet | #C4AEF5 |
+| Information | cyan | #9ECFC7 |
+| Nutrition | pink | #F3B29C |
+| Récupération, attention | rest | #F4B381 |
+| Erreur | danger | #FFAAA2 |
 
-- `Button` : `primary` (encre), `accent` (citron, seulement sur fond encre ou pour l'action unique de l'écran), `secondary`, `ghost`, `danger`. Le texte reste lisible quelle que soit la couleur passée (il se cale sur la luminance du fond). Hauteur ≥ 48.
-- `IconButton`, `Chip`, `OptionCard`, `Field`, `Stepper`, `RatingPicker` : rôle d'accessibilité, état (sélectionné, coché, désactivé), cible ≥ 44 px, anneau de focus visible au clavier (web).
-- `Panel` (remplace `GradientCard`) : ton `ink`, `accent` ou `surface`.
-- `ProgressBar` : remplissage animé, rôle `progressbar`.
-- `EmptyState` : une icône dans une pastille, un titre, une phrase qui dit quoi faire, et un bouton.
+### Dosage et composants
+- Majorité de surfaces charbon/olive ; citron ponctuel pour guider l’action, pas sur toutes les cartes.
+- Une seule famille d’accent secondaire par bloc. La couleur est toujours accompagnée d’un texte ou d’une icône.
+- Bouton principal citron avec texte encre ; bouton secondaire sur surface sombre.
+- Sélection et focus : citron visible. Les segments mesurent au moins 44 px de haut.
+- Cartes de séance : titre sur deux lignes maximum, durée en pastille, nombre d’exercices, aperçu avant démarrage.
+- Progrès : objectif de séances de la semaine, puis historique ; périodes 4, 8 ou 12 semaines. Valeurs issues du journal réel.
+- Typographie : Lato Black 26–34 pour les titres, Bold 17–20 pour les sous-titres, Regular 15/22 pour le corps, 13/18 pour les métadonnées.
+- Espacements : 4, 8, 12, 16, 24, 32, 48 px. Rayons : 12 pour contrôles, 20 pour cartes, 28 pour images éditoriales.
+- Photographies : adultes variés, lumière naturelle ou salle sombre, mouvement crédible, espace libre pour le texte. Aucun texte incrusté dans l’image.
+- Voix : tutoiement, phrases courtes, encouragement sans culpabiliser. Verbes précis : Découvrir, Commencer, Adapter.
 
-## Accessibilité
-
-- Contraste AA pour tout le texte. Le citron n'est jamais du texte sur fond clair.
-- Rôles et états sur tout ce qui se touche. Les titres d'écran ont le rôle `header`.
-- Focus clavier visible sur le web : anneau encre de 2 px, décalé de 2 px.
-- Les confirmations passent par `confirmAction` / `notify`, qui fonctionnent aussi sur le web.
+### Sélection des nouvelles références
+Conserver les pastilles de durée, les indicateurs de progression lisibles et les choix de période. Préserver la fiche avant le lancement, déjà présente dans Mova.
+Ne pas ajouter de pas, fréquence cardiaque, eau ou calories mesurées sans données correspondantes ; ne pas ajouter de notes communautaires fictives. Les graphes servent à comprendre une mesure, pas à remplir l’écran.
+Ne pas multiplier orange, turquoise et violet en grands fonds concurrents. Ne pas cacher les libellés de navigation derrière des icônes seules.

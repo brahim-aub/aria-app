@@ -62,14 +62,14 @@ export function ExerciseList({ equipment, onSelect, selected }: { equipment: Equ
         const isSel = selected?.includes(e.id);
         const expanded = open === e.id;
         return (
+          <View key={e.id} style={[styles.row, isSel && styles.rowSelected]}>
           <Pressable
-            key={e.id}
             onPress={() => (onSelect ? onSelect(e) : setOpen(expanded ? null : e.id))}
             onLongPress={() => setOpen(expanded ? null : e.id)}
             accessibilityRole="button"
             accessibilityLabel={`${e.name}, ${LEVEL[e.level].toLowerCase()}`}
             accessibilityState={onSelect ? { selected: !!isSel } : { expanded }}
-            style={(s: PressState) => [styles.row, isSel && styles.rowSelected, !isSel && s.hovered && { borderColor: colors.borderStrong }, s.pressed && { opacity: 0.8 }, focusRing(s, radius.md)]}
+            style={(s: PressState) => [!isSel && s.hovered && { borderColor: colors.borderStrong }, s.pressed && { opacity: 0.8 }, focusRing(s, radius.md)]}
           >
             <View style={styles.rowTop}>
               <View style={[styles.level, { backgroundColor: LEVEL_COLOR[e.level] }]} />
@@ -85,9 +85,10 @@ export function ExerciseList({ equipment, onSelect, selected }: { equipment: Equ
                 <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.muted} />
               )}
             </View>
+          </Pressable>
             {expanded && (
               <View style={{ gap: 6, marginTop: spacing.sm }}>
-                <ExerciseDemo exerciseId={e.id} size={180} />
+                <ExerciseDemo exerciseId={e.id} compact />
                 <View style={styles.tags}>
                   <Tag label={CATEGORY_LABEL[e.category]} color={colors.text} />
                   <Tag label={LEVEL[e.level]} color={LEVEL_COLOR[e.level]} />
@@ -108,7 +109,7 @@ export function ExerciseList({ equipment, onSelect, selected }: { equipment: Equ
                 {e.stresses.length > 0 && <Text style={styles.meta}>Sollicite : {e.stresses.map((s) => BODY_PART_LABEL[s].toLowerCase()).join(', ')}</Text>}
               </View>
             )}
-          </Pressable>
+          </View>
         );
       })}
     </View>

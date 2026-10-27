@@ -1,6 +1,16 @@
-# Aria Sport
+# Mova (anciennement Aria Sport)
 
 App de sport boostée à l'IA (Expo SDK 58, Android en priorité). Pensée pour tout le monde, et surtout pour les débutants : un programme généré à l'inscription, puis un coach IA (Gemini) qui l'adapte en un message.
+
+## Mise à jour Mova
+
+Direction artistique charbon/citron, parcours simplifiés, aperçu avant démarrage des séances, chrono compact, démonstrations 3D HD et optimisations de consommation Gemini. La charte est conservée dans DESIGN.md.
+
+Après clonage : npm ci, puis npm start (ou npm run web). La préparation des médias s’exécute automatiquement avant le démarrage. Pour une commande Expo directe, lancer d’abord npm run media:prepare. Le script récupère uniquement les 13 MP4 nécessaires dans le pack gratuit officiel Vital Animations, vérifie leur empreinte SHA-256 et réutilise les fichiers déjà présents. Les vidéos sous licence sont exclues du dépôt public ; voir assets/exercise-hd/README.md pour la provenance et les conditions. Une connexion internet est nécessaire à la première préparation.
+
+Compilation web : npm run build:web. Les builds EAS préparent les médias avec le hook eas-build-post-install. Une nouvelle compilation native est nécessaire pour intégrer expo-video.
+
+Le chemin habituel du coach passe par le relais Supabase : la clé Gemini reste dans les secrets serveur. Une clé personnelle est facultative. Les optimisations serveur sont décrites dans supabase/README.md et leur migration dans supabase/ai-optimizations.sql.
 
 ## Fonctionnalités (MVP)
 

@@ -9,7 +9,7 @@ import { colors, font, spacing } from '@/theme';
 const SECTIONS: { title: string; body: string[] }[] = [
   {
     title: 'Qui est responsable ?',
-    body: ['Aria Sport est édité par un développeur indépendant. Contact : à compléter avant la publication.'],
+    body: ['Mova est édité par un développeur indépendant. Contact : à compléter avant la publication.'],
   },
   {
     title: 'Quelles données ?',

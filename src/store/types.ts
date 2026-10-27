@@ -239,5 +239,5 @@ export type AppData = {
   healthConsentAt?: string;
 };
 
-export type AiUsageTotals = { calls: number; tokensIn: number; tokensCached: number; tokensOut: number; searches: number; costUsd: number };
+export type AiUsageTotals = { usageVersion?: 2; legacyEstimate?: boolean; calls: number; tokensIn: number; tokensCached: number; tokensOut: number; searches: number; costUsd: number };
 export type AiUsageMonth = { month: string; kinds: Partial<Record<'chat' | 'meal' | 'prices' | 'test', AiUsageTotals>> };

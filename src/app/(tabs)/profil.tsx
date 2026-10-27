@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Panel, ProgressBar, SectionHeader } from '@/components/kit';
-import { H1, IconName, Muted, Screen } from '@/components/ui';
+import { H1, IconButton, IconName, Muted, Screen } from '@/components/ui';
 import { ACHIEVEMENTS, levelFromPoints, levelTitle, TIER_COLOR, totalPoints } from '@/data/achievements';
 import { GOAL_LABEL, LEVEL_LABEL } from '@/data/generator';
 import { computeStats } from '@/lib/stats';
@@ -24,9 +24,9 @@ export default function Profil() {
 
   return (
     <Screen>
-      <H1 style={{ marginTop: spacing.sm }}>Profil</H1>
+      <View style={styles.rowCenter}><H1 style={{ flex: 1 }}>Profil</H1><IconButton icon="settings-outline" label="Modifier mon profil et mon programme" onPress={() => router.push('/reglages')} /></View>
 
-      <Panel onPress={() => router.push('/trophees')} label={`${p.name || 'Profil'}, niveau ${lvl.level}, ${points} points. Voir les trophées`}>
+      <Panel>
         <View style={styles.rowCenter}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{(p.name || '?').charAt(0).toUpperCase()}</Text>
@@ -39,8 +39,30 @@ export default function Profil() {
               {GOAL_LABEL[p.goal]}, {LEVEL_LABEL[p.level].toLowerCase()}
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-        </View>
+          </View>
+      </Panel>
+
+
+      <SectionHeader title="Mon suivi" />
+      <View style={styles.menu}>
+        <MenuItem icon="trending-up-outline" label="Progrès et poids" onPress={() => router.push('/progres')} />
+        <MenuItem icon="book-outline" label="Journal des séances" onPress={() => router.push('/journal')} last />
+      </View>
+      <SectionHeader title="Mes outils" />
+      <View style={styles.menu}>
+        <MenuItem icon="albums-outline" label="Trouver ou créer une séance" onPress={() => router.push('/seances')} />
+        <MenuItem icon="library-outline" label="Bibliothèque d’exercices" onPress={() => router.push('/exercices')} />
+        <MenuItem icon="timer-outline" label="Chrono et minuteurs" onPress={() => router.push('/chrono')} last />
+      </View>
+      <SectionHeader title="Mon activité en chiffres" />
+      <View style={styles.grid}>
+        <StatTile icon="checkmark-done" value={`${stats.sessions}`} label="séances" />
+        <StatTile icon="time" value={hours ? `${hours}h${String(stats.minutes % 60).padStart(2, '0')}` : `${stats.minutes} min`} label="d’entraînement" />
+        <StatTile icon="barbell" value={stats.volumeKg >= 1000 ? `${(stats.volumeKg / 1000).toFixed(1)} t` : `${stats.volumeKg} kg`} label="soulevés" />
+        <StatTile icon="flame" value={`${stats.kcal}`} label="kcal estimées" />
+      </View>
+
+      <Panel onPress={() => router.push('/trophees')} label="Voir mes trophées et ma progression de niveau">
         <View style={styles.levelRow}>
           <Text style={styles.levelTitle}>
             Niveau {lvl.level} <Text style={styles.levelName}>{levelTitle(lvl.level)}</Text>
@@ -50,14 +72,6 @@ export default function Profil() {
         <ProgressBar ratio={lvl.into / lvl.need} height={8} label="Progression vers le niveau suivant" />
         <Text style={styles.sub}>Encore {lvl.need - lvl.into} points pour le niveau {lvl.level + 1}.</Text>
       </Panel>
-
-      <View style={styles.grid}>
-        <StatTile icon="checkmark-done" value={`${stats.sessions}`} label="séances" />
-        <StatTile icon="time" value={hours ? `${hours}h${String(stats.minutes % 60).padStart(2, '0')}` : `${stats.minutes} min`} label="d’entraînement" />
-        <StatTile icon="barbell" value={stats.volumeKg >= 1000 ? `${(stats.volumeKg / 1000).toFixed(1)} t` : `${stats.volumeKg} kg`} label="soulevés" />
-        <StatTile icon="flame" value={`${stats.kcal}`} label="kcal brûlées" />
-      </View>
-
       <SectionHeader title="Derniers succès" action="Tout voir" onAction={() => router.push('/trophees')} />
       {recent.length ? (
         <View style={styles.badges}>
@@ -76,16 +90,6 @@ export default function Profil() {
         <Muted>Termine ta première séance pour débloquer ton premier succès !</Muted>
       )}
 
-      <SectionHeader title="Mon espace" />
-      <View style={styles.menu}>
-        <MenuItem icon="trophy-outline" label="Salle des trophées" onPress={() => router.push('/trophees')} />
-        <MenuItem icon="trending-up-outline" label="Progrès & poids" onPress={() => router.push('/progres')} />
-        <MenuItem icon="book-outline" label="Journal des séances" onPress={() => router.push('/journal')} />
-        <MenuItem icon="albums-outline" label="Séances prêtes & mes séances" onPress={() => router.push('/seances')} />
-        <MenuItem icon="library-outline" label="Bibliothèque d’exercices" onPress={() => router.push('/exercices')} />
-        <MenuItem icon="timer-outline" label="Chrono & minuteurs" onPress={() => router.push('/chrono')} />
-        <MenuItem icon="settings-outline" label="Réglages du profil et du programme" onPress={() => router.push('/reglages')} last />
-      </View>
     </Screen>
   );
 }

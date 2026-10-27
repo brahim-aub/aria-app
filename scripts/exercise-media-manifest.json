@@ -1,0 +1,111 @@
+{
+  "source": "https://pub-a63d6296f71940e5b51f4f8065d7b660.r2.dev/VitalAnimations/VitalAnimations.zip",
+  "archiveSize": 284164517,
+  "license": "https://vitalanimations.com/license",
+  "clips": [
+    {
+      "file": "0054.mp4",
+      "offset": 92001998,
+      "compressed": 3304560,
+      "method": 8,
+      "size": 3308795,
+      "sha256": "9ff30823cb7ea1189df02378bc16e26d4f151dd8437874b73df6d9320d16265e"
+    },
+    {
+      "file": "0057.mp4",
+      "offset": 102822011,
+      "compressed": 1795663,
+      "method": 8,
+      "size": 1799457,
+      "sha256": "3af2229f88a752213bdbac4a64247952f2e71858e4c01a6bea9441209052643b"
+    },
+    {
+      "file": "0064.mp4",
+      "offset": 133700857,
+      "compressed": 2324870,
+      "method": 8,
+      "size": 2327946,
+      "sha256": "b15b4ea2bb75d97eb3f8a02a2de237dca7403d72518e3759307c2178e6fdede7"
+    },
+    {
+      "file": "0072.mp4",
+      "offset": 167428075,
+      "compressed": 1839935,
+      "method": 8,
+      "size": 1842379,
+      "sha256": "ddccdcbec89f3acadb8ee4cf82e022840778655164a2a465ffddef7325f973c4"
+    },
+    {
+      "file": "0073.mp4",
+      "offset": 169268126,
+      "compressed": 5598647,
+      "method": 8,
+      "size": 5600586,
+      "sha256": "0cc245b283d5813197a47fc01596784d67aa70c097af7297c1968935bf7e51e6"
+    },
+    {
+      "file": "0074.mp4",
+      "offset": 174866889,
+      "compressed": 6834517,
+      "method": 8,
+      "size": 6836178,
+      "sha256": "58267f0fb6d89f0381f1838861ab41e0458e4920bfd5b6175671be370b060c30"
+    },
+    {
+      "file": "0075.mp4",
+      "offset": 181701522,
+      "compressed": 5600246,
+      "method": 8,
+      "size": 5601988,
+      "sha256": "d1e3126d6a0034b7f56b5a45b375763db49133a0d3df005b5b231eebc5b526de"
+    },
+    {
+      "file": "0077.mp4",
+      "offset": 190754600,
+      "compressed": 5408797,
+      "method": 8,
+      "size": 5410156,
+      "sha256": "c210d9eca171243063705b5a8e3e28cdcfe034069a4b1ca760ac22bcd358fdfe"
+    },
+    {
+      "file": "0085.mp4",
+      "offset": 231303409,
+      "compressed": 1854003,
+      "method": 8,
+      "size": 1857302,
+      "sha256": "32fe2b643c4ee2281cf1afae4ed9e6a1a4a610d19f1298bda3f0a2b904ad8e99"
+    },
+    {
+      "file": "0086.mp4",
+      "offset": 233157528,
+      "compressed": 2949770,
+      "method": 8,
+      "size": 2952395,
+      "sha256": "fc92fd6a65f1402b247b3d17c37b71e344f82a7d9ebc134fb328db36999d5319"
+    },
+    {
+      "file": "0088.mp4",
+      "offset": 237771893,
+      "compressed": 2127271,
+      "method": 8,
+      "size": 2130147,
+      "sha256": "2fa63f8f13ce9ca6481c1c4dac97eb38f3c0cd2da567ca4f0c549e60d324d3e0"
+    },
+    {
+      "file": "0090.mp4",
+      "offset": 243680291,
+      "compressed": 1759325,
+      "method": 8,
+      "size": 1761991,
+      "sha256": "ae2ae37e883f1fa87b287736a1d38d8371d8729c2210e0eab261fa0acdd4fbe8"
+    },
+    {
+      "file": "0096.mp4",
+      "offset": 261438533,
+      "compressed": 1988056,
+      "method": 8,
+      "size": 1990804,
+      "sha256": "c304cad8bcb05c345e4fd82d236e83d2f398c33386a6357f1513d608794e910b"
+    }
+  ]
+}

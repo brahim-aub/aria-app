@@ -70,3 +70,18 @@ Une limite demandée plus basse est respectée. Le client ne peut pas augmenter 
 Le corps reçu de Google est limité à **2 Mio**. Une réponse arrêtée à sa limite de tokens est signalée avec `OUTPUT_LIMIT`, afin de ne pas renvoyer un JSON tronqué ou relancer automatiquement d'autres modèles. Cet appel conserve son quota et sa consommation : il a déjà sollicité Gemini.
 
 Ces limites bornent chaque appel ; elles ne constituent pas un budget financier mensuel global. Une requête refusée avant la prise de quota ne lance aucun appel Google.
+
+### Optimisations de consommation — 27 octobre 2026
+
+Appliquer `ai-optimizations.sql` avant de déployer `functions/gemini/index.ts`. La migration conserve `daily_limits` et active `optimizations_enabled` dans la ligne `ai` de `app_config`.
+
+- `ai_requests` : verrou atomique par utilisateur et empreinte du corps validé, valable 5 minutes pendant le traitement. Réponses et erreurs réutilisables 2 minutes ; purge opportuniste bornée des entrées expirées. Aucune réponse personnalisée n'est partagée entre comptes. RLS activée ; accès réservé au rôle service.
+- `REQUEST_PENDING` : le client attend le résultat existant au lieu de lancer une autre génération. Un délai dépassé ne relance pas automatiquement un autre modèle.
+- `ai_call_usage` : métadonnées de chaque appel Google (modèle, entrée, cache, sortie dont réflexion, requêtes de recherche signalées, durée, statut). Aucun prompt ni réponse dans cette table. RLS activée ; accès réservé au rôle service. Les réponses rejouées ne reprennent pas de quota et ne comptent pas une nouvelle consommation.
+- Les compteurs locaux distinguent les requêtes de recherche des appels et appliquent les tarifs Standard de référence avec remise du cache. Ils restent des estimations ; les anciens cumuls ne sont pas recalculés rétroactivement. Source : https://ai.google.dev/gemini-api/docs/pricing . Les franchises globales, taxes et éventuelles remises contractuelles ne sont pas connues par l'app.
+- Les relevés de prix récents du téléphone sont réutilisés après édition de menus et les identifiants d'ingrédients sont remappés. Les prix périmés ou URL invalides restent exclus. Le cache partagé et ses durées restent actifs.
+- Les modifications de repas renvoient uniquement les repas changés ; la liste de courses est recalculée dans le client. La version du plan remplacé distingue une nouvelle génération volontaire d'une relance identique.
+
+Production : migration et fonction déployées via le tableau de bord le 27/10/2026. Le défaut historique du relais en production pour `prices` est de 6 ; la configuration effective existante dans `app_config` est de 60, conservée lors de cette opération. Préserver cette distinction lors des déploiements suivants.
+
+Retour arrière : remettre `optimizations_enabled` à false désactive les nouvelles dépendances serveur sans supprimer les tables, ou redéployer la sauvegarde précédente du relais. La compatibilité avec les compteurs historiques est préservée.

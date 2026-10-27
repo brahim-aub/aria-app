@@ -133,6 +133,7 @@ export function Field(props: TextInputProps & { label?: string; error?: string; 
         placeholderTextColor={colors.muted}
         accessibilityLabel={rest.accessibilityLabel ?? label ?? rest.placeholder}
         accessibilityHint={error ?? hint}
+        aria-invalid={!!error}
         {...rest}
         onFocus={(e) => {
           setFocused(true);
@@ -231,7 +232,7 @@ const s = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.card,
   },
-  optionSelected: { borderColor: colors.dark, borderWidth: 2, padding: spacing.md - 1 },
+  optionSelected: { borderColor: colors.accent, borderWidth: 2, padding: spacing.md - 1 },
   optionIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.cardAlt },
   optionTitle: { color: colors.text, fontSize: 16, fontFamily: font.bold },
   optionSub: { color: colors.muted, ...type.small, marginTop: 2 },
@@ -240,7 +241,7 @@ const s = StyleSheet.create({
   markOn: { backgroundColor: colors.accent, borderColor: colors.dark },
   fieldLabel: { color: colors.text, fontSize: 14, fontFamily: font.bold },
   field: { minHeight: 48, fontFamily: font.regular, color: colors.text, backgroundColor: colors.card, borderRadius: radius.sm + 2, paddingHorizontal: spacing.md, paddingVertical: 12, fontSize: 16, borderWidth: 1, borderColor: colors.borderStrong },
-  fieldFocused: { borderColor: colors.dark, borderWidth: 2, paddingHorizontal: spacing.md - 1, paddingVertical: 11 },
+  fieldFocused: { borderColor: colors.focus, borderWidth: 2, paddingHorizontal: spacing.md - 1, paddingVertical: 11 },
   fieldError: { borderColor: colors.danger },
   fieldMsg: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   fieldMsgText: { color: colors.muted, ...type.small },
@@ -276,7 +277,7 @@ export function Segmented<T extends string>({ options, value, onChange, label }:
             }}
             style={(st: PressState) => [seg.item, active && seg.itemActive, !active && st.hovered && { backgroundColor: colors.border }, focusRing(st, radius.pill)]}
           >
-            <Text style={[seg.text, active && { color: colors.onDark }]} numberOfLines={1}>
+            <Text style={[seg.text, active && { color: colors.onAccent }]} numberOfLines={1}>
               {o.label}
             </Text>
           </Pressable>
@@ -288,7 +289,7 @@ export function Segmented<T extends string>({ options, value, onChange, label }:
 
 const seg = StyleSheet.create({
   wrap: { flexDirection: 'row', backgroundColor: colors.cardAlt, borderRadius: radius.pill, padding: 4, gap: 4 },
-  item: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.sm, borderRadius: radius.pill },
-  itemActive: { backgroundColor: colors.dark },
+  item: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.sm, borderRadius: radius.pill },
+  itemActive: { backgroundColor: colors.accent },
   text: { color: colors.muted, fontFamily: font.bold, fontSize: 14 },
 });
